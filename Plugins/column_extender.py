@@ -1,5 +1,5 @@
 '''
-This plugin expands the DIAG and OPER columns to the grouper maximum of 99 columns.
+    This plugin expands the DIAG and OPER columns to the grouper maximum of 99 columns.
 '''
 import re
 import pandas as pd
@@ -8,34 +8,35 @@ from Plugins.base_plugin import BasePlugin
 
 class ColumnExtenderPlugin(BasePlugin):
     '''
-    WARNING: This plugin modifies the structure of the dataframe!
+        WARNING: This plugin modifies the structure of the dataframe!
 
-    This plugin finds columns matching a given prefix + underscore + digits
-    (e.g., DIAG_01, DIAG_02, etc.), determines the highest integer suffix,
-    and inserts additional columns up to a specified max (e.g., DIAG_03, ... DIAG_99)
-    immediately after the highest existing column.
+        This plugin finds columns matching a given prefix + digits
+        (e.g., DIAG_01, DIAG_02, etc.), determines the highest integer suffix,
+        and inserts additional columns up to a specified max (e.g., DIAG_03, ... DIAG_99)
+        immediately after the highest existing column.
 
-    Example:
-      - prefix = "DIAG", max = 99
-      - If columns up to DIAG_16 exist, it inserts DIAG_17 ... DIAG_99
-        right after DIAG_16.
+        Example:
+        - prefix = "DIAG", max = 99
+        - If columns up to DIAG_16 exist, it inserts DIAG_17 ... DIAG_99
+            after DIAG_16.
 
-    The purpose of this transformation is to enable consolidation of multi-episode
-    spells into a single episode to simplify the data for the grouper. We'll need
-    to append diagnoses and procedures to the end of the existing episode so we
-    want to maximize the fields available to avoid dropping codes when the combined
-    list might otherwise exceed the length of the original number of code fields.
+        The purpose of this transformation is to enable consolidation of multi-episode
+        spells into a single episode to simplify the inpt data for the grouper.
+        We'll need to append diagnoses and procedures to the end of the existing episode
+        so we want to maximize the fields available to avoid dropping codes when the
+        combined list might otherwise exceed the length of the original number of code fields.
     '''
+
     def __init__(self, prefix: str, maximum: int):
         '''
-        :param prefix: The prefix, e.g. 'DIAG_' or 'OPER_'.
-        :param max: The highest numeric suffix to append to.
+            :param prefix: The prefix.
+            :param max: The highest numeric suffix to append to.
         '''
         self.prefix = prefix
         self.maximum = maximum
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        # Regex to match prefix +  underscore + digits, e.g. DIAG_01, OPER_02, etc.
+        # Regex to match prefix + digits, e.g. DIAG_01, OPER_02, etc.
         pattern = r'^' + re.escape(self.prefix) + r'(\d+)$'
         regex = re.compile(pattern)
 
@@ -52,13 +53,26 @@ class ColumnExtenderPlugin(BasePlugin):
         if not matching_columns:
             # No columns matching our prefix exist yet
             current_max = 0
-            raise ValueError(f"No columns found matching prefix '{self.prefix}'")
+            raise ValueError(
+                f"No columns found matching prefix '{self.prefix}'")
 
         # Find the column with the highest numeric suffix
-        last_column_name = max(matching_columns, key=lambda column: matching_columns[column])
+        last_column_name = max(
+            matching_columns, key=lambda column: matching_columns[column])
         current_max = matching_columns[last_column_name]
         # Get that column's position
         last_column_position = df.columns.get_loc(last_column_name)
+        # Ensure last_column_position is an integer (in case of duplicate columns)
+        if isinstance(last_column_position, slice):
+            # Get the end of the slice
+            last_column_position = last_column_position.stop
+
+        elif isinstance(last_column_position, int):
+            # Use the first occurrence
+            last_column_position += 1
+        else:
+            raise TypeError(
+                f"Unexpected type for last_column_position: {type(last_column_position)}")
 
         # If we already meet or exceed desired_max, no new columns needed
         if current_max >= self.maximum:

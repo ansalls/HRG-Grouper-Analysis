@@ -4,12 +4,13 @@
 '''
 import subprocess
 
+
 def run_command_and_wait(command: list[str], silent=False) -> bool:
     '''
-    Runs a Windows command line program and waits for its completion.
+        Runs a Windows command line program and waits for its completion.
 
-    :param command: A list containing the command and its arguments.
-    :return: true if command completed successfully, else false.
+        :param command: A list containing the command and its arguments.
+        :return: true if command completed successfully, else false.
     '''
     if not silent:
         print(f"Running command: {' '.join(command)}")

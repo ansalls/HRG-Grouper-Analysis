@@ -1,16 +1,16 @@
 '''
     This module defines the base plugin class that all data transformation
-    plugins should inherit from.
+    plugins inherit from.
 '''
 import pandas as pd
 
 class BasePlugin:
     '''
-    A base plugin class that defines the expected structure
-    of any data transformation plugin.
+        A base plugin class that defines the expected structure
+        of any data transformation plugin.
 
-    Each plugin should have a "transform(dataframe)" method that
-    takes a pandas dataframe and returns a transformed dataframe.
+        Each plugin should have a "transform(dataframe)" method that
+        takes a pandas dataframe and returns a transformed dataframe.
     '''
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         '''

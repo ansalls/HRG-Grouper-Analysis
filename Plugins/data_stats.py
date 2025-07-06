@@ -3,36 +3,40 @@
 '''
 from typing import List
 import pandas as pd
-from Utils.constants import DIAGNOSIS_PREFIX, PROCEDURE_PREFIX
+from Utils.constants import (
+    DIAGNOSIS_PREFIX, PROCEDURE_PREFIX, SPELL_ID,
+    START_AGE, BIOLOGICAL_SEX, PATIENT_CLASSIFICATION, ADMISSION_SOURCE, ADMISSION_METHOD,
+    CLINICIAN_MAIN_SPECIALTY, TREATMENT_SPECIALTY
+)
 from Plugins.base_plugin import BasePlugin
 
 
 class DataStatsPlugin(BasePlugin):
     '''
-    A plugin that prints out statistics about the DataFrame.
-    1. Range, mean, mode for each numeric column.
-    2. Distinct count, top 5 for each non-numeric column.
-    3. Lumped DIAG/OPER columns, counting total distinct codes + top 10.
-    4. Spell-level stats:
-        - # of spells (distinct PROVSPNO)
-        - Avg episodes per spell
-        - Count of spells that qualify for combination
-          (i.e., > 1 row and consistent across key columns)
-        - Count of single-episode spells
-        - Count of inconsistent spells, plus how many had inconsistentcy on a given column.
+        A plugin that prints out statistics about the DataFrame.
+        1. Range, mean, mode for each numeric column.
+        2. Distinct count, top 5 for each non-numeric column.
+        3. Lumped DIAG/OPER columns, counting total distinct codes + top 10.
+        4. Spell-level stats:
+            - # of spells (distinct SPELL_ID)
+            - Avg episodes per spell
+            - Count of spells that qualify for combination
+            (i.e., > 1 row and consistent across key columns)
+            - Count of single-episode spells
+            - Count of inconsistent spells, plus how many had inconsistentcy on a given column.
     '''
 
     def __init__(self):
         '''
-        Initialize the plugin with the prefixes for DIAG and OPER columns,
+            Initialize the plugin with the prefixes for DIAG and OPER columns,
         '''
         self.diag_prefix = DIAGNOSIS_PREFIX
         self.oper_prefix = PROCEDURE_PREFIX
 
         # The columns that must match for a spell to be considered "consistent"
         self.check_columns = [
-            'STARTAGE', 'SEX', 'CLASSPAT', 'ADMISORC', 'ADMIMETH',
-            'MAINSPEF', 'TRETSPEF'
+            START_AGE, BIOLOGICAL_SEX, PATIENT_CLASSIFICATION, ADMISSION_SOURCE, ADMISSION_METHOD,
+            CLINICIAN_MAIN_SPECIALTY, TREATMENT_SPECIALTY
         ]
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -139,20 +143,20 @@ class DataStatsPlugin(BasePlugin):
     # ----------------------------------------------------------------------
     def print_spell_stats(self, df: pd.DataFrame):
         '''
-        - # of spells
-        - Avg episodes per spell
-        - Count of spells that qualify for combination
-        - Count of single-episode spells
-        - Count of inconsistent spells
-        - Count of those inconsistencies by column
+            - # of spells
+            - Avg episodes per spell
+            - Count of spells that qualify for combination
+            - Count of single-episode spells
+            - Count of inconsistent spells
+            - Count of those inconsistencies by column
         '''
 
         print("\n--- Spell-Level Stats ---")
-        if 'PROVSPNO' not in df.columns:
-            print("  No 'PROVSPNO' column found. Can't compute spell-level stats.")
+        if SPELL_ID not in df.columns:
+            print(f"  No {SPELL_ID} column found. Can't compute spell-level stats.")
             return
 
-        spells = df.groupby('PROVSPNO')
+        spells = df.groupby(SPELL_ID)
         spell_sizes = spells.size()  # number of rows per spell
         num_spells = len(spell_sizes)
         avg_episodes = spell_sizes.mean() if num_spells > 0 else 0
@@ -180,7 +184,7 @@ class DataStatsPlugin(BasePlugin):
                     for column in inc_columns:
                         inconsistent_per_column[column] += 1
 
-        print(f"  Total spells (distinct PROVSPNO): {num_spells}")
+        print(f"  Total spells (distinct {SPELL_ID}): {num_spells}")
         print(f"  Average episodes per spell: {avg_episodes:.2f}")
         print(f"  Spells that qualify for combination: {qualifies_count}")
         print(f"  Single-episode spells (only 1 row): {single_episode_count}")

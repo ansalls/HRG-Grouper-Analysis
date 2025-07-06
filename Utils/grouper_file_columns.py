@@ -2,29 +2,27 @@
     This module provides functions for reading and processing data files
 '''
 from os import path
-from typing import Optional
-import pathlib as p
 import Utils.constants as const
 
 
-def parse_definition_file(rdf_file: p.Path) -> list[tuple]:
+def parse_definition_file(rdf_file: str) -> tuple[str, list]:
     '''
-    Reads the definition file and extracts:
-      - The delimiter based on the first line
-      - The column specifications on subsequent lines
+        Reads the definition file and extracts:
+        - The delimiter based on the first line
+        - The column specifications on subsequent lines
 
-    Notes:
-    The files are .rdf but this is NOT the same as that described
-    here: http://www.w3.org/1999/02/22-rdf-syntax-ns#
+        Notes:
+        The files are .rdf but this is NOT the same as that described
+        here: http://www.w3.org/1999/02/22-rdf-syntax-ns#
 
-    Information about the file can be found here in the user manual:
-    HRG4++202425+Local+Payment+Grouper+User+Manual+v1.0.pdf
+        Information about the file can be found here in the user manual:
+        HRG4++202425+Local+Payment+Grouper+User+Manual+v1.0.pdf
 
-    Returns a tuple of (delimiter, column_mappings) where:
-      - delimiter is a character
-      - column_mappings is a list of [display_name, internal_name, position]
+        Returns a tuple of (delimiter, column_mappings) where:
+        - delimiter is a character
+        - column_mappings is a list of [display_name, internal_name, position]
     '''
-    #The examples all use comma delimited but we'll thrown in a couple more.
+    # The examples all use comma delimited but we'll thrown in a couple more.
     delimiter_map = {
         "COMMA DELIMITED": ",",
         "TAB DELIMITED": "\t",
@@ -56,10 +54,10 @@ def parse_definition_file(rdf_file: p.Path) -> list[tuple]:
     # Sort the column mappings by position
     column_definitions.sort(key=lambda fields: fields[2])
 
-    return delimiter, column_definitions
+    return (delimiter, column_definitions)
 
 
-def append_grouper_columns(column_definitions: list, additional_columns: list) -> list:
+def append_grouper_columns(column_definitions: list, additional_columns: list):
     '''
         Type is the file postfix added by the grouper to the file name.
         We add a few columns to the end of the column definitions to
@@ -97,7 +95,7 @@ def fce_file_additional_cols(columns: list[tuple]) -> list[tuple]:
                           'SpellEpisodeCount', 'SpellLOS', 'ReportingSpellLOS',
                           'SpellTrimpoint', 'SpellExcessBeddays', 'SpellCCDays',
                           'SpellPBC', 'UnbundledHRGs',
-                         ]
+                          ]
     append_grouper_columns(columns, additional_columns)
     return columns
 
@@ -117,9 +115,10 @@ def fce_rel_file_additional_cols() -> list[tuple]:
                ('FCETrimpoint', 'FCETrimpoint', 8),
                ('FCEExcessBeddays', 'FCEExcessBeddays', 9),
                ('SpellReportFlag', 'SpellReportFlag', 10),
-              ]
+               ]
 
     return columns
+
 
 def spell_file_additional_cols() -> list[tuple]:
     '''
@@ -165,8 +164,9 @@ def spell_file_additional_cols() -> list[tuple]:
                ('SpellFlag6', 'SpellFlag6', 38),
                ('SpellFlag7', 'SpellFlag7', 39),
                ('UnbundledHRGs', 'UnbundledHRGs', 40),
-              ]
+               ]
     return columns
+
 
 def spell_rel_file_additional_cols() -> list[tuple]:
     '''
@@ -187,8 +187,9 @@ def spell_rel_file_additional_cols() -> list[tuple]:
                ('SpellExcessBeddays', 'SpellExcessBeddays', 13),
                ('SpellCCDays', 'SpellCCDays', 14),
                ('SpellPBC', 'SpellPBC', 15),
-              ]
+               ]
     return columns
+
 
 def quality_file_additional_cols(columns: list[tuple]) -> list[tuple]:
     '''
@@ -200,9 +201,10 @@ def quality_file_additional_cols(columns: list[tuple]) -> list[tuple]:
                           'Error Message5', 'Error Message6',
                           'Error Message7', 'Error Message8',
                           'Error Message9', 'Error Message10',
-                         ]
+                          ]
     append_grouper_columns(columns, additional_columns)
     return columns
+
 
 def quality_rel_file_additional_cols() -> list[tuple]:
     '''
@@ -214,9 +216,10 @@ def quality_rel_file_additional_cols() -> list[tuple]:
                ('Code Type', 'Code Type', 3),
                ('Code', 'Code', 4),
                ('Error Message', 'Error Message', 5),
-              ]
+               ]
 
     return columns
+
 
 def flag_rel_file_additional_cols() -> list[tuple]:
     '''
@@ -228,9 +231,10 @@ def flag_rel_file_additional_cols() -> list[tuple]:
                ('PROVSPNO', 'PROVSPNO', 3),
                ('Iteration', 'Iteration', 4),
                ('SpellFlag', 'SpellFlag', 5),
-              ]
+               ]
 
     return columns
+
 
 def ub_rel_file_additional_cols() -> list[tuple]:
     '''
@@ -243,7 +247,7 @@ def ub_rel_file_additional_cols() -> list[tuple]:
     columns = [('RowNo', 'RowNo', 1),
                ('Iteration', 'Iteration', 2),
                ('UnbundledHRGs', 'UnbundledHRGs', 3),
-              ]
+               ]
 
     return columns
 
@@ -263,19 +267,21 @@ def summary_file_additional_cols() -> list[tuple]:
                ('Input Filename', 'Input Filename', 9),
                ('Output Filename', 'Output Filename', 10),
                ('RDF path and name', 'RDF path and name', 11),
-              ]
+               ]
     return columns
+
 
 class GrouperFileDefinitions:
     '''
         A class to hold the file definitions for the various files consumed
         or produced by the NHS grouper software.
     '''
-    def __init__(self, rdf_file: Optional[p.Path]):
 
-        if not rdf_file.exists():
+    def __init__(self, rdf_file: str = ""):
+
+        if not rdf_file:
             rdf_file = path.join(const.DATA_FILE_FOLDER, const.DEFAULT_RDF_FILE)
-        if not rdf_file.exists():
+        if not rdf_file:
             raise FileNotFoundError(f"File not found: {rdf_file}")
 
         self.delimiter, self.input_file_columns = parse_definition_file(rdf_file)
@@ -289,7 +295,6 @@ class GrouperFileDefinitions:
         self.flag_rel_file = flag_rel_file_additional_cols()
         self.ub_rel_file = ub_rel_file_additional_cols()
         self.summary_file = summary_file_additional_cols()
-
 
     def error_parser(self, error_field: str) -> dict:
         '''

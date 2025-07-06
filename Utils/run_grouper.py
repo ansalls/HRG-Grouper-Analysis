@@ -10,18 +10,18 @@ import Utils.constants as const
 
 
 def run_grouper(input_file: str,
-               definitions_file: Optional[str] = None,
-               output_file: Optional[str] = None,
-               grouper_exe: Optional[str] = None,
-               ) -> str:
+                definitions_file: Optional[str] = None,
+                output_file: Optional[str] = None,
+                grouper_exe: Optional[str] = None,
+                ) -> str:
     '''
-    Runs the grouper executable with the specified data and definitions files.
+        Runs the grouper executable with the specified data and definitions files.
 
-    :param data_file: The path to the data file to be processed.
-    :param definitions_file: The path to the definitions file to be used.
-    :param output_file: The path to the output file to be created.
-    :param grouper_exe: The path to the grouper executable.
-    :return: The path to the output file.
+        :param data_file: The path to the data file to be processed.
+        :param definitions_file: The path to the definitions file to be used.
+        :param output_file: The path to the output file to be created.
+        :param grouper_exe: The path to the grouper executable.
+        :return: The path to the output file.
     '''
 
     if grouper_exe is None:
@@ -44,9 +44,9 @@ def run_grouper(input_file: str,
         formated_date = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         file_name = path.split(input_file)[1]
         output_file = file_name.replace(
-                        const.DEFAULT_FILE_EXTENSION,
-                        f"_output_{formated_date}{const.DEFAULT_FILE_EXTENSION}"
-                        )
+            const.DEFAULT_FILE_EXTENSION,
+            f"_output_{formated_date}{const.DEFAULT_FILE_EXTENSION}"
+        )
 
     if path.split(output_file)[0] == '':
         output_file = path.join(const.HRG_OUTPUT_FILE_FOLDER, output_file)

@@ -1,24 +1,24 @@
 '''
     Class for start age.
 '''
-from Utils.constants import MAX_START_AGE
+from Utils.constants import MAX_START_AGE, START_AGE
 from Probe_classes.probe import Probe
+
 
 class StartAge(Probe):
     '''
-    Class for start age.
+        Class for start age.
     '''
     @classmethod
     def column_name(cls) -> str:
-        return "STARTAGE"
+        return START_AGE
 
     @classmethod
     def probe_values(cls) -> list[int]:
         '''
-        This is all valid values. Max is really 130, but 999 is used as
-        an unknown value placeholder. Unsure how it interacts with age
-        splits. At least for DZ15Q (see 4020000223) it's treated as
-        an adult age (19-130).
+            This is all valid values. Max is really 130, but 999 is used as
+            an unknown value placeholder. MAX_START_AGE is treated as an
+            adult age (19-130) for grouping.
         '''
         return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
                 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,

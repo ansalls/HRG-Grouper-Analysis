@@ -1,7 +1,7 @@
 '''
-This script is a command line tool that reads a definition file and a data file,
-applies a series of data transformation plugins to the data, and outputs the
-resulting DataFrame to a new CSV file.
+    This script is a command line tool that reads a definition file and a data file,
+    applies a series of data transformation plugins to the data, and outputs the
+    resulting DataFrame to a new CSV file.
 '''
 import argparse
 from Plugins.only_inpatient_baseclass import OnlyInpatientPlugin
@@ -20,6 +20,7 @@ from Utils.time_to_run import ttr
 from Utils.constants import (MAX_DIAG_COLS, MAX_OPER_COLS,
                              DIAGNOSIS_PREFIX, PROCEDURE_PREFIX,
                              DEFAULT_RDF_FILE)
+
 
 def main():
     '''
@@ -41,15 +42,17 @@ def main():
     print(f"The data has been processed and saved to {output_file_path}")
     _ = ttr(time)
 
+
 if __name__ == "__main__":
     main()
 
+
 def process_zl_data_file(data_file_path: str,
-                         definition_file_path = '.\\data\\' + DEFAULT_RDF_FILE
+                         definition_file_path='.\\data\\' + DEFAULT_RDF_FILE
                          ) -> str:
     '''
-    This function runs the plugins on the data file and writes the output to a new CSV file.
-    Note: DataStatsPlugin prints output to the console.
+        This function runs the plugins on the data file and writes the output to a new CSV file.
+        Note: DataStatsPlugin prints output to the console.
     '''
 
     # Read in the data

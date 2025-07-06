@@ -1,43 +1,47 @@
 '''
     This module provides a plugin that finds sets of rows (grouped by PROVSPNO)
     where all rows share identical values for the columns:
-    STARTAGE, SEX, CLASSPAT, ADMISORC, ADMIMETH, MAINSPEF, and TRETSPEF
+        START_AGE, BIOLOGICAL_SEX, PATIENT_CLASSIFICATION, ADMISSION_SOURCE, ADMISSION_METHOD,
+        CLINICIAN_MAIN_SPECIALTY, and TREATMENT_SPECIALTY
 '''
 import pandas as pd
 import numpy as np
-from Utils.constants import DIAGNOSIS_PREFIX, PROCEDURE_PREFIX
+from Utils.constants import (
+    DIAGNOSIS_PREFIX, PROCEDURE_PREFIX, START_AGE, BIOLOGICAL_SEX, PATIENT_CLASSIFICATION,
+    ADMISSION_METHOD, ADMISSION_SOURCE, CLINICIAN_MAIN_SPECIALTY, TREATMENT_SPECIALTY,
+    SPELL_ID, EPISODE_SEQUENCE_NUMBER, EPISODE_DURATION
+)
 from Plugins.base_plugin import BasePlugin
 
 
 class CombinationRowPlugin(BasePlugin):
     '''
-    This plugin finds sets of rows (grouped by PROVSPNO) where all rows share identical
-    values for the columns:
-      STARTAGE, SEX, CLASSPAT, ADMISORC, ADMIMETH, MAINSPEF, and TRETSPEF
-    If all rows of that PROVSPNO share those values, we add a new 'combination' row.
-    This new row is populated as follows:
-      - PROVSPNO: original + "_C"
-      - EPIORDER: 1
-      - EPIDUR: sum of all EPIDUR values in the group
-      - DIAG_01..DIAG_99: deduplicated set of codes from the group
-      - OPER_01..OPER_99: deduplicated set of codes from the group
-    Other columns are copied from the last row of the group.
+        This plugin finds sets of rows (grouped by SPELL_ID) where all rows share identical
+        values for the columns:
+        START_AGE, BIOLOGICAL_SEX, PATIENT_CLASSIFICATION, ADMISSION_SOURCE, ADMISSION_METHOD,
+        CLINICIAN_MAIN_SPECIALTY, and TREATMENT_SPECIALTY
+        If all rows of that SPELL_ID share those values, we add a new 'combination' row.
+        This new row is populated as follows:
+        - SPELL_ID: original + "_C"
+        - EPISODE_SEQUENCE_NUMBER: 1
+        - EPISODE_DURATION: sum of all EPISODE_DURATION values in the group
+        - DIAG_01..DIAG_99: deduplicated set of codes from the group
+        - OPER_01..OPER_99: deduplicated set of codes from the group
+        Other columns are copied from the last row of the group.
     '''
 
     def __init__(self, replace_rows: bool = False):
         '''
-        Constructor for the CombinationRowPlugin.
         :param replace_rows: If True, the original rows will be replaced with the combination row.
-                            If False, the original rows will be kept.
+                             If False, the original rows will be kept.
         '''
         self.replace_rows = replace_rows
 
-
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        # Define the columns that must match for all rows in a group
+        # Define the columns that must match for all rows in a group to qualify for combination
         check_columns = [
-            'STARTAGE', 'SEX', 'CLASSPAT', 'ADMISORC', 'ADMIMETH',
-            'MAINSPEF', 'TRETSPEF'
+            START_AGE, BIOLOGICAL_SEX, PATIENT_CLASSIFICATION, ADMISSION_SOURCE, ADMISSION_METHOD,
+            CLINICIAN_MAIN_SPECIALTY, TREATMENT_SPECIALTY
         ]
 
         # Columns to gather deduplicated values for
@@ -45,21 +49,21 @@ class CombinationRowPlugin(BasePlugin):
         diag_columns = [column for column in df.columns if column.startswith(DIAGNOSIS_PREFIX)]
         oper_columns = [column for column in df.columns if column.startswith(PROCEDURE_PREFIX)]
 
-        # We’ll build a list of new rows (in dict form) as we go
+        # Build a list of new rows as we go
         processed_rows = []
-        unique_spells = df['PROVSPNO'].unique()
+        unique_spells = df[SPELL_ID].unique()
 
         for spell in unique_spells:
             # Skip any spells that have already been combined.
             if isinstance(spell, str) and spell.endswith("_C"):
                 # Append original rows unchanged
-                for index in df[df['PROVSPNO'] == spell].index:
+                for index in df[df[SPELL_ID] == spell].index:
                     row_dict = df.loc[index].to_dict()
                     processed_rows.append(row_dict)
                 continue
 
-            # Subset of rows for this PROVSPNO
-            spell_df = df[df['PROVSPNO'] == spell]
+            # Subset of rows for this SPELL_ID
+            spell_df = df[df[SPELL_ID] == spell]
 
             # Check if all rows in spell_df share identical values for the columns in check_cols
             consistent = self._core_values_identical(spell_df, check_columns)
@@ -77,9 +81,10 @@ class CombinationRowPlugin(BasePlugin):
                 last_idx = spell_df.index[-1]
                 combo_row = df.loc[last_idx].to_dict()
 
-                combo_row['PROVSPNO'] = str(combo_row['PROVSPNO']) + "_C"
-                combo_row['EPIORDER'] = 1
-                combo_row['EPIDUR'] = str(pd.to_numeric(spell_df['EPIDUR'], errors='coerce').sum())
+                combo_row[SPELL_ID] = str(combo_row[SPELL_ID]) + "_C"
+                combo_row[EPISODE_SEQUENCE_NUMBER] = 1
+                combo_row[EPISODE_DURATION] = str(pd.to_numeric(
+                    spell_df[EPISODE_DURATION], errors='coerce').sum())
 
                 # For DIAG_* and OPER_* columns, gather distinct codes and place them in the new row
                 combo_row = self._deduplicate_and_fill(spell_df, combo_row, diag_columns)
@@ -95,7 +100,7 @@ class CombinationRowPlugin(BasePlugin):
 
     def _core_values_identical(self, spell_df: pd.DataFrame, columns: list) -> bool:
         '''
-        Returns True if for all columns, the spell's rows have the same value.
+            Returns True if for all columns, the spell's rows have the same value.
         '''
         # If there's only one row, we can't combine it with anything
         if len(spell_df) == 1:
@@ -110,9 +115,9 @@ class CombinationRowPlugin(BasePlugin):
 
     def _deduplicate_and_fill(self, spell_df: pd.DataFrame, combo_row: dict, columns: list) -> dict:
         '''
-        Gathers distinct non-null values from all rows in "spell_df" for each column.
-        Deduplicates them and add them to combo_row.
-        Any leftover column positions get cleared.
+            Gathers distinct non-null values from all rows in "spell_df" for each column.
+            Deduplicates them and add them to combo_row.
+            Any leftover column positions get cleared.
         '''
         # Gather all distinct values from the group
         all_codes = set()

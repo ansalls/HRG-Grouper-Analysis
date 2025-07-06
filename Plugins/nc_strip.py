@@ -1,14 +1,15 @@
 '''
-This plugin is used to strip #NC (no code placeholder) from the diagnosis
-codes in the grouper input data.
+    This plugin is used to strip #NC (no code placeholder) from the diagnosis
+    codes in the grouper input data.
 '''
 import pandas as pd
 from Utils.constants import DIAGNOSIS_PREFIX
 from Plugins.base_plugin import BasePlugin
 
+
 class NcStripPlugin(BasePlugin):
     '''
-    Plugin that strips #NC placeholders from any columns whose names start with DIAG.
+        Plugin that strips #NC placeholders from any columns whose names start with DIAG.
     '''
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:

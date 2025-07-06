@@ -2,27 +2,27 @@
     This module provides a function that generates a new output file
     path based on the input file path.
 '''
+import logging
 from os import path
 from re import match, escape, sub
-import pandas as pd
-import logging
 from typing import List, Optional
+import pandas as pd
 from Utils.constants import VERSION_PREFIX
 
 
-def get_default_output_file(input_file: str, output_file_name: str = None) -> str:
+def get_default_output_file(input_file: str, output_file_name: str = "") -> str:
     '''
-    Given a file path (e.g. '/path/dir/name.csv' or '/path/dir/name_v3.csv'),
-    return a new path that increments the version number.
+        Given a file path (e.g. '/path/dir/name.csv' or '/path/dir/name_v3.csv'),
+        return a new path that increments the version number.
 
-    If no version suffix is found, we start at '_v2'.
-    Args:
-        input_file (str): The input file name and path.
-        output_file_name (str): The desired output file name (only).
+        If no version suffix is found, we start at '_v2'.
+        Args:
+            input_file (str): The input file name and path.
+            output_file_name (str): The desired output file name (only).
     '''
     directory, input_filename = path.split(input_file)
 
-    if output_file_name is not None:
+    if output_file_name:
         return path.join(directory, output_file_name)
 
     output_file_name = input_filename
@@ -41,22 +41,25 @@ def get_default_output_file(input_file: str, output_file_name: str = None) -> st
                                               VERSION_PREFIX,
                                               new_version,
                                               ext)
-                                              )
+                         )
 
     return path.join(directory, filename_constructor(name, VERSION_PREFIX, 2, ext))
 
+
 def filename_constructor(base_name: str, version_prefix: str, version_num: int, ext: str) -> str:
     '''
-    Given a base name, version prefix, version number, and extension, return a new filename.
+        Given a base name, version prefix, version number, and extension, return a new filename.
     '''
     return f"{base_name}{version_prefix}{version_num}{ext}"
 
+
 def file_extension_replace(filename, old_ext, new_ext):
     '''
-    Given a filename, an old extension, and a new extension, return a new filename
-    with the old extension replaced by the new extension.
+        Given a filename, an old extension, and a new extension, return a new filename
+        with the old extension replaced by the new extension.
     '''
     return sub(rf"{old_ext}$", new_ext, filename)
+
 
 def convert_doubles_to_integers(
     input_file: str,
@@ -65,20 +68,21 @@ def convert_doubles_to_integers(
     chunk_size: int = 500000,
     log_frequency: int = 100000
 ) -> str:
-    """
-    Convert specified columns in a large CSV file from doubles to integers.
-    Processes the file in chunks to minimize memory usage.
+    '''
+        Convert specified columns in a large CSV file from doubles to integers.
+        Processes the file in chunks to minimize memory usage.
 
-    Args:
-        input_file (str): Path to the input CSV file.
-        columns_to_convert (List[str]): List of column names to convert from double to int.
-        output_file (Optional[str]): Path to save the processed file. If None, a default name is generated.
-        chunk_size (int): Number of rows to process at once.
-        log_frequency (int): How often to log progress (number of rows).
+        Args:
+            input_file (str): Path to the input CSV file.
+            columns_to_convert (List[str]): List of column names to convert from double to int.
+            output_file (Optional[str]): Path to save the processed file.
+                                         If None, a default name is generated.
+            chunk_size (int): Number of rows to process at once.
+            log_frequency (int): How often to log progress (number of rows).
 
-    Returns:
-        str: Path to the output file.
-    """
+        Returns:
+            str: Path to the output file.
+    '''
     # Set up logging
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     logger = logging.getLogger(__name__)
@@ -94,7 +98,8 @@ def convert_doubles_to_integers(
     # Process the CSV in chunks
     total_rows = 0
 
-    # Create iterator for reading chunks - use string dtype to preserve original format of non-specified columns
+    # Create iterator for reading chunks
+    #   use string dtype to preserve original format of non-specified columns
     chunks = pd.read_csv(input_file, chunksize=chunk_size, dtype=str)
 
     for i, chunk in enumerate(chunks):

@@ -1,37 +1,40 @@
 '''
-    This module provides a plugin that finds sets of rows (grouped by PROVSPNO)
-    where all rows share identical values for the columns:
-    STARTAGE, SEX, CLASSPAT, ADMISORC, ADMIMETH, MAINSPEF, and TRETSPEF
+    This module provides a plugin that drops all rows where the EPISODE_SEQUENCE_NUMBER
+    is greater than 1. This is useful for ensuring that we only work with single-episode spells,
+    avoiding complications from cross-episode interactions.
 '''
 import pandas as pd
 from Plugins.base_plugin import BasePlugin
+from Utils.constants import EPISODE_SEQUENCE_NUMBER
 
 
 class OnlySingleEpisodeSpellsPlugin(BasePlugin):
     '''
-        This plugin removes rows where EPIORDER is greater than 1
+        This plugin removes rows where EPISODE_SEQUENCE_NUMBER is greater than 1
         so that we don't have to account for cross-episode interaction
         within the grouper (which is known to occur)
     '''
+
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         '''
-        Filters the input DataFrame to remove any rows where EPIORDER is greater than 1.
+            Filters the input DataFrame to remove any rows where EPISODE_SEQUENCE_NUMBER > 1.
 
-        Parameters:
-        -----------
-        df : pd.DataFrame
-            The input DataFrame, expected to include an 'EPIORDER' column.
+            Parameters:
+            -----------
+            df : pd.DataFrame
+                The input DataFrame, expected to include an EPISODE_SEQUENCE_NUMBER column.
 
-        Returns:
-        --------
-        pd.DataFrame
-            A new DataFrame containing only the rows where EPIORDER is 1 or less.
+            Returns:
+            --------
+            pd.DataFrame
+                A new DataFrame containing only the rows where EPISODE_SEQUENCE_NUMBER is 1 or less.
         '''
-        if 'EPIORDER' not in df.columns:
-            raise ValueError("The input DataFrame must contain an 'EPIORDER' column.")
+        if EPISODE_SEQUENCE_NUMBER not in df.columns:
+            raise ValueError(
+                f"The input DataFrame must contain an {EPISODE_SEQUENCE_NUMBER} column.")
 
-        # Identify the indices of rows where EPIORDER is greater than 1
-        rows_to_drop = df.index[df['EPIORDER'] > 1]
+        # Identify the indices of rows where EPISODE_SEQUENCE_NUMBER is greater than 1
+        rows_to_drop = df.index[df[EPISODE_SEQUENCE_NUMBER] > 1]
 
         df.drop(index=rows_to_drop, inplace=True)
 

@@ -1,5 +1,5 @@
 '''
-This module sets up the application
+    This module sets up the application
 '''
 import shutil
 import os
@@ -13,9 +13,10 @@ from Utils.constants import (DATA_FILE_FOLDER,
                              RAW_FILE_FOLDER,
                              SAMPLE_DATA_FILE)
 
+
 def main():
     '''
-    Main function to set up the application
+        Main function to set up the application
     '''
     # Move the file from ./data/APC_Sample_Test_Data.csv to ./data/raw/
     copy_sample_data_to_raw()
@@ -25,7 +26,7 @@ def main():
 
     # Check if the Grouper executable is available
     if grouper_exe_is_available():
-        return # Done
+        return  # Done
 
     env_file = ".env"
 
@@ -56,7 +57,7 @@ def main():
             exe_path = filedialog.askopenfilename(
                 title="Select HRGGrouperc.exe",
                 filetypes=[("Executable files", "*.exe")]
-                )
+            )
             if not exe_path:  # User canceled the dialog
                 raise FileNotFoundError("HRGGrouperc.exe not found")
 
@@ -64,9 +65,10 @@ def main():
     with open(env_file, "w", encoding="utf-8") as f:
         f.write(f'GROUPER_EXE="{exe_path}"\n')
 
+
 def copy_sample_data_to_raw():
     '''
-    Copy sample data to the unmanaged raw directory
+        Copy sample data to the unmanaged raw directory
     '''
     file_name = SAMPLE_DATA_FILE
     file_dir = DATA_FILE_FOLDER
@@ -74,7 +76,7 @@ def copy_sample_data_to_raw():
     destination_dir = RAW_FILE_FOLDER
     destination_file = os.path.join(destination_dir, file_name)
 
-    #Skip if we've already moved the file
+    # Skip if we've already moved the file
     if os.path.exists(destination_file):
         return
 
@@ -86,9 +88,10 @@ def copy_sample_data_to_raw():
 
     shutil.copy(source_file, destination_file)
 
+
 def get_current_year_fye_tag() -> str:
     '''
-    Calculate the current financial year end tag
+        Calculate the current financial year end tag
     '''
     current_year = datetime.datetime.now().year
     next_year = current_year + 1
@@ -96,14 +99,16 @@ def get_current_year_fye_tag() -> str:
     fye_tag = f"{current_year}_{last_two}"
     return fye_tag
 
+
 def grouper_exe_is_available() -> bool:
     '''
-    Check if the Grouper executable is available
+        Check if the Grouper executable is available
     '''
     load_dotenv()
     if os.getenv("GROUPER_EXE") is not None:
         return True
     return False
+
 
 if __name__ == "__main__":
     main()

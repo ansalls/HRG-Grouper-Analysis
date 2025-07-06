@@ -6,7 +6,7 @@ Set-Location -Path 'C:\Users\TonyS\OneDrive\Desktop\Code\reimboost'
 $Chapter   = 'HD'
 $FileName    = "{0}_slim_test_v2.csv" -f $Chapter
 
-# Define base directories & files 
+# Define base directories & files
 $BaseDir = (Get-Location).Path
 $HRGInputDir   = Join-Path $BaseDir 'data\hrg_input'
 $HRGOutputDir  = Join-Path $BaseDir 'data\hrg_output'
@@ -28,8 +28,8 @@ function Get-OutputFile {
     )
     return Join-Path $Dir ("{0}_{1}.{2}" -f $Chapter, $Step, $Extension)
 }
-# Helper to track step processing time. 
-function Log-Step {
+# Helper to track step processing time.
+function Write-Step {
     param(
         [int] $Step,
         [System.Diagnostics.Stopwatch] $Timer
@@ -43,7 +43,7 @@ $timer = [System.Diagnostics.Stopwatch]::StartNew()
 # Step 3: Append diagnoses for CC inclusion
 $OutputFile = Get-OutputFile -Step $Step -Dir $StartFolder
 & (Join-Path $BaseDir 'append_diag.exe') (Join-Path $BaseDir 'data\all_used_diag_codes.txt') $InputFile $OutputFile
-Log-Step -Step $Step -Timer $timer
+Write-Step -Step $Step -Timer $timer
 
 $InputFile = $OutputFile
 $Step++
@@ -64,7 +64,7 @@ $OutputFile = Join-Path $HRGOutputDir ("{0}_{1}.{2}" -f $Chapter, $Step, $Extens
     -d $RdfFile `
     -l 'APC' `
     -h
-Log-Step -Step $Step -Timer $timer
+Write-Step -Step $Step -Timer $timer
 
 # Grouper appends "_FCE" before the extension:
 $InputFile = Join-Path $HRGOutputDir ("{0}_{1}_FCE.{2}" -f $Chapter, $Step, $Extension)
@@ -73,7 +73,7 @@ $OutputFile = Get-OutputFile -Step $Step -Dir $HRGOutputDir
 
 # Step 6: Drop if HRG didn't change at all (cols 226 vs 291)
 & (Join-Path $BaseDir 'col_substring_compare.exe') -n $InputFile $OutputFile 226 260
-Log-Step -Step $Step -Timer $timer
+Write-Step -Step $Step -Timer $timer
 
 $InputFile = $OutputFile
 $Step++
@@ -81,7 +81,7 @@ $OutputFile = Get-OutputFile -Step $Step -Dir $HRGOutputDir
 
 # Step 7: Drop if HRG root itself changed (compare first 4 chars)
 & (Join-Path $BaseDir 'col_substring_compare.exe') -l 4 $InputFile $OutputFile 226 260
-Log-Step -Step $Step -Timer $timer
+Write-Step -Step $Step -Timer $timer
 
 $InputFile = $OutputFile
 $Step++
@@ -90,7 +90,7 @@ $OutputFile = Get-OutputFile -Step $Step -Dir $HRGOutputDir
 # Step 8: Split the appended diagnosis code from PROVSPNO field off into its own column
 #    (-n -1 means split off the last delimited field)
 & (Join-Path $BaseDir 'split_field.exe') -n -1 $InputFile $OutputFile 2
-Log-Step -Step $Step -Timer $timer
+Write-Step -Step $Step -Timer $timer
 
 $InputFile = $OutputFile
 $Step++
@@ -99,6 +99,6 @@ $Step++
 $FinalDir   = Join-Path $BaseDir 'data\cc_codes'
 $OutputFile = Join-Path $FinalDir ("{0}_{1}_cc_list.{2}" -f $Chapter, $Step, $Extension)
 & (Join-Path $BaseDir 'unique_col_vals.exe') -c $InputFile $OutputFile 3
-Log-Step -Step $Step -Timer $timer
+Write-Step -Step $Step -Timer $timer
 
 Write-Host "Final CC list for chapter $Chapter is at $OutputFile"

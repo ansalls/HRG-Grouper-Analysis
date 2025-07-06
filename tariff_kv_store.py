@@ -14,13 +14,14 @@ from Utils.constants import (DEFAULT_FYE_TAG,
                              PROCESSED_FILE_FOLDER,
                              HRG_COLUMN_NAME)
 
-def get_tariff_kv_store(input_file = None, fye_tag: str = DEFAULT_FYE_TAG, no_cache=False) -> dict:
+
+def get_tariff_kv_store(input_file=None, fye_tag: str = DEFAULT_FYE_TAG, no_cache=False) -> dict:
     '''
-    This function loads the tariff data from an Excel file, filters it, and returns a dictionary
+        This function loads the tariff data from an Excel file, filters it, and returns a dictionary
     '''
     if input_file is None:
         excel_filename = path.join(DATA_FILE_FOLDER,
-                               f"{fye_tag}_sus_tariff_reference_data_at_240924.xlsx")
+                                   f"{fye_tag}_sus_tariff_reference_data_at_240924.xlsx")
     else:
         excel_filename = input_file
 
@@ -39,7 +40,8 @@ def get_tariff_kv_store(input_file = None, fye_tag: str = DEFAULT_FYE_TAG, no_ca
 
     return kv_store
 
-def load_and_filter_data(filename: str, fye_tag: str = DEFAULT_FYE_TAG) -> str:
+
+def load_and_filter_data(filename: str, fye_tag: str = DEFAULT_FYE_TAG) -> dict:
     '''
     Loads an Excel sheet, filters rows based on criteria, and returns a dictionary
     mapping a composite key to the tariff value.
@@ -72,6 +74,7 @@ def load_and_filter_data(filename: str, fye_tag: str = DEFAULT_FYE_TAG) -> str:
 
     return kv_store
 
+
 def tariff_kv_store_format() -> str:
     '''
     This function returns the format of the tariff key-value store
@@ -91,13 +94,14 @@ def add_tariff_key(df: DataFrame) -> DataFrame:
     # Create the tariff lookup key column.
     df['TariffKey'] = df.apply(
         lambda row: f"{get_spell_type(int(row[PatientClassification.column_name()]))}-"
-                    f"{get_admit_type(row[AdmitMethod.column_name()])}-"
-                    f"{row[HRG_COLUMN_NAME]}-"
-                    f"{DEFAULT_FYE_TAG}",
+        f"{get_admit_type(row[AdmitMethod.column_name()])}-"
+        f"{row[HRG_COLUMN_NAME]}-"
+        f"{DEFAULT_FYE_TAG}",
         axis=1
-        )
+    )
 
     return df
+
 
 def get_spell_type(classification_value: int) -> str:
     '''
@@ -110,6 +114,7 @@ def get_spell_type(classification_value: int) -> str:
 
     return PatientClassification.spell_type(classification)
 
+
 def get_admit_type(admit_value: str) -> str:
     '''
     Converts an admit method value to its corresponding admit type.
@@ -120,6 +125,7 @@ def get_admit_type(admit_value: str) -> str:
         raise ValueError(f"Invalid admit method: {admit_value}") from exc
 
     return AdmitMethod.admit_type(admit_method)
+
 
 def add_tariff_value(df: DataFrame, kv_store: dict) -> DataFrame:
     '''
@@ -132,6 +138,7 @@ def add_tariff_value(df: DataFrame, kv_store: dict) -> DataFrame:
     df["TariffValue"] = df["TariffKey"].map(kv_store)
 
     return df
+
 
 def add_tariff_columns(df: DataFrame) -> DataFrame:
     '''

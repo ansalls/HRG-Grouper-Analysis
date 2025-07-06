@@ -1,22 +1,23 @@
 '''
-    Class for Code Drop(ping).
+    Class for Code Drop(ping). Incrementally drops diagnoses codes
+    to generate all possible combinations of diagnosis codes for each row.
 '''
 import itertools
 import pandas as pd
-from tqdm import tqdm  # Add this import
+from tqdm import tqdm
 
-from Utils.constants import (DEFAULT_DELIMITER,
-                             DIAGNOSIS_PREFIX) #,PROCEDURE_PREFIX)
+from Utils.constants import DEFAULT_DELIMITER, DIAGNOSIS_PREFIX, SPELL_ID
+
 
 class CodeDrop:
     '''
-    Class for incrementally dropping diagnoses codes.
+        Class for incrementally dropping diagnoses codes.
     '''
     @staticmethod
     def generate_new_rows(row: pd.Series) -> list[pd.Series]:
-        """
-        Legacy row-by-row implementation (slow for large data).
-        """
+        '''
+            Legacy row-by-row implementation (slow for large data).
+        '''
         new_rows = []
 
         # Identify DIAG and OPER columns
@@ -35,7 +36,9 @@ class CodeDrop:
             diag_01_col = diag_cols[0]
             other_diag_cols = diag_cols[1:]
             # Get indices of non-null diagnosis codes in other_diag_cols
-            non_null_other_diag_indices = [i for i, col in enumerate(other_diag_cols) if pd.notna(row[col])]
+            non_null_other_diag_indices = [
+                i for i, col in enumerate(other_diag_cols) if pd.notna(row.loc[col])
+            ]
             n_other_diag = len(non_null_other_diag_indices)
             for r in range(1, n_other_diag + 1):
                 for combo in itertools.combinations(non_null_other_diag_indices, r):
@@ -48,8 +51,12 @@ class CodeDrop:
                     keep_cols = [other_diag_cols[idx] for idx in combo]
                     new_row.loc[keep_cols] = row.loc[keep_cols]
                     # Update PROVSPNO with unique combination descriptor
-                    new_row['PROVSPNO'] = (
-                        f"{row['PROVSPNO']}{DEFAULT_DELIMITER}Combinations{DEFAULT_DELIMITER}{combo_number}"
+                    new_row[SPELL_ID] = (
+                        f"{row[SPELL_ID]}"
+                        f"{DEFAULT_DELIMITER}"
+                        f"Combinations"
+                        f"{DEFAULT_DELIMITER}"
+                        f"{combo_number}"
                     )
                     combo_rows.append(new_row)
                     combo_number += 1
@@ -60,16 +67,19 @@ class CodeDrop:
         return new_rows
 
     @staticmethod
-    def generate_new_rows_vectorized_(df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Fully vectorized approach using bitmasking to generate all combinations of diagnosis codes for all rows.
+    def generate_new_rows_vectorized(df: pd.DataFrame) -> pd.DataFrame:
+        '''
+            Fully vectorized approach using bitmasking to generate all combinations of diagnosis
+            codes for all rows.
 
-        Args:
-            df (pd.DataFrame): The original DataFrame.
+            Sadly, this didn't provide much speedup over the row-by-row approach.
 
-        Returns:
-            pd.DataFrame: DataFrame with all code drop combinations.
-        """
+            Args:
+                df (pd.DataFrame): The original DataFrame.
+
+            Returns:
+                pd.DataFrame: DataFrame with all code drop combinations.
+        '''
         diag_cols = [col for col in df.columns if col.startswith(DIAGNOSIS_PREFIX)]
 
         # Remove DIAG_01 from diag_df, keep it for later
@@ -88,11 +98,12 @@ class CodeDrop:
 
         # Bitmask cache
         bitmask_cache = {}
+
         def generate_bitmasks(n, k):
-            """
-            Recursively generate all bitmasks of length n with k bits set.
-            Uses symmetry: bitmasks with k set bits are complements of those with n-k set bits.
-            """
+            '''
+                Recursively generate all bitmasks of length n with k bits set.
+                Uses symmetry: bitmasks with k set bits are complements of those with n-k set bits.
+            '''
             if k < 0 or k > n:
                 return []
             if n == 0:
@@ -101,7 +112,7 @@ class CodeDrop:
             if key in bitmask_cache:
                 return bitmask_cache[key]
             if k > n // 2:
-                # Use symmetry: invert bitmasks for n-k
+                # Invert bitmasks for n-k
                 masks = generate_bitmasks(n, n - k)
                 full_mask = (1 << n) - 1
                 result = [bm ^ full_mask for bm in masks]
@@ -128,15 +139,19 @@ class CodeDrop:
             group = diag_df[row_ns == n]
             if group.empty:
                 continue
-            # Wrap the k-loop with tqdm for finer progress if desired
+            # Wrap the inner k loop with tqdm for finer progress monitoring
             for k in tqdm(range(1, n + 1), desc=f"k (combos for n={n})", leave=False, position=1):
                 for bitmask in bitmask_cache[(n, k)]:
                     # Build mask for columns 0 to n-1 (all secondary diagnoses)
                     mask = [(bitmask & (1 << i)) != 0 for i in range(n)]
-                    mask_df = pd.DataFrame([mask] * len(group), index=group.index, columns=other_diag_cols[:n])
+                    mask_df = pd.DataFrame([mask] * len(group),
+                                           index=group.index, columns=other_diag_cols[:n])
                     # Prepare new diagnosis columns
                     diag_part = group.copy()
-                    diag_part.loc[:, other_diag_cols[:n]] = diag_part.loc[:, other_diag_cols[:n]].where(mask_df, other=pd.NA)
+                    diag_part.loc[:, other_diag_cols[:n]] = (
+                        diag_part.loc[:, other_diag_cols[:n]].where(mask_df, other=pd.NA)
+                    )
+
                     if len(other_diag_cols) > n:
                         # Assign pd.NA as a scalar to all remaining columns, after casting to object
                         for col in other_diag_cols[n:]:
@@ -148,13 +163,15 @@ class CodeDrop:
                     new_data = {}
                     # Diagnosis columns in correct order
                     for col in diag_cols:
-                        new_data[col] = diag_part[col] if col in diag_part else df.loc[diag_part.index, col]
+                        new_data[col] = (
+                            diag_part[col] if col in diag_part else df.loc[diag_part.index, col]
+                        )
                     # Other columns
                     for col in other_cols:
                         new_data[col] = df.loc[diag_part.index, col]
-                    # Update PROVSPNO with unique combination descriptor
-                    new_data['PROVSPNO'] = (
-                        df.loc[diag_part.index, 'PROVSPNO'].astype(str) +
+                    # Update SPELL_ID with unique combination descriptor
+                    new_data[SPELL_ID] = (
+                        df.loc[diag_part.index, SPELL_ID].astype(str) +
                         f"{DEFAULT_DELIMITER}Combinations{DEFAULT_DELIMITER}{k}"
                     )
                     # Build DataFrame for this combination

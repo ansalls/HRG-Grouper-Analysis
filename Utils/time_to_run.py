@@ -1,17 +1,16 @@
 '''
-This module tracks the time between an initial call and subsequent calls
-and prints the delta in a human-readable format.
+    This module tracks the time between an initial call and subsequent calls
+    and prints the delta in a human-readable format.
 '''
 from datetime import datetime
 
 
 def ttr(time=None, suppress_output=False):
     '''
-    time to run
+        time to run
     '''
     if time is None:
         return datetime.now()
-
 
     delta = datetime.now() - time
     total_seconds = delta.total_seconds()

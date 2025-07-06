@@ -3,6 +3,7 @@
 '''
 from abc import ABC, abstractmethod
 
+
 class Probe(ABC):
     '''
         This class defines the Probe abstract base class.
@@ -10,10 +11,13 @@ class Probe(ABC):
     @classmethod
     @abstractmethod
     def column_name(cls) -> str:
-        """Returns the name of the column to probe."""
-
+        '''
+            Returns the name of the column to probe.
+        '''
 
     @classmethod
     @abstractmethod
     def probe_values(cls) -> list:
-        """Returns the list of values to probe."""
+        '''
+            Returns the list of values to probe.
+        '''
