@@ -20,23 +20,24 @@ from Plugins.procodet_null_filler import ProcodetNullFillerPlugin
 
 def add_probe_rows(probe_cls, df: pd.DataFrame) -> pd.DataFrame:
     '''
-    For each row in the given DataFrame, create additional rows for each element
-    of the provided class.
-    Updates the specified column with the class' valued and appends the class
-    name and the value  to the 'PROVSPNO' field to ensure a unique identifier.
+        For each row in the given DataFrame, create additional rows for each element
+        of the provided class.
+        Updates the specified column with the class' valued and appends the class
+        name and the value  to the 'PROVSPNO' field to ensure a unique identifier.
 
-    Parameters:
-    -----------
-    probe_cls: The probe class (Enum, Probe subclass, or custom class with generate_new_rows).
-    df : pd.DataFrame
-        The original DataFrame to which new rows will be appended.
+        Parameters:
+        -----------
+        probe_cls: The probe class (Enum, Probe subclass, or custom class with generate_new_rows).
+        df : pd.DataFrame
+            The original DataFrame to which new rows will be appended.
 
-    Returns:
-    --------
-    pd.DataFrame
-        A new DataFrame containing both the original and the additional rows.
+        Returns:
+        --------
+        pd.DataFrame
+            A new DataFrame containing both the original and the additional rows.
     '''
     new_rows = []
+    column_name = None  # Default to None in case we can't find it in the probe class
 
     # Prefer vectorized method if available
     if hasattr(probe_cls, 'generate_new_rows_vectorized'):
@@ -52,10 +53,13 @@ def add_probe_rows(probe_cls, df: pd.DataFrame) -> pd.DataFrame:
         # Set up variables based on probe_cls type
         # Enum type - e.g. admission_method
         if issubclass(probe_cls, Enum):
-            column_name = probe_cls.column_name()
             probe_values = [member.value for member in probe_cls]
             value_names = [member.name for member in probe_cls]
             probe_name = probe_cls.__name__
+            if hasattr(probe_cls, "column_name"):
+                column_name_attr = getattr(probe_cls, "column_name", None)
+                if callable(column_name_attr):
+                    column_name = column_name_attr()
 
         # Probe class type - e.g. start_age
         elif issubclass(probe_cls, Probe):
@@ -73,8 +77,8 @@ def add_probe_rows(probe_cls, df: pd.DataFrame) -> pd.DataFrame:
             for value, value_name in zip(probe_values, value_names):
                 new_row = row.copy()
                 new_row[column_name] = value
-                new_row["PROVSPNO"] = (
-                    f"{row['PROVSPNO']}{const.DEFAULT_DELIMITER}"
+                new_row[const.SPELL_ID] = (
+                    f"{row[const.SPELL_ID]}{const.DEFAULT_DELIMITER}"
                     f"{probe_name}{const.DEFAULT_DELIMITER}"
                     f"{value_name}"
                 )
@@ -85,16 +89,16 @@ def add_probe_rows(probe_cls, df: pd.DataFrame) -> pd.DataFrame:
 
 
 def create_base_df(no_cache: bool = False,
-                   input_rdf = path.join(const.DATA_FILE_FOLDER, const.BASE_RDF_FILE),
-                   data_file = const.SAMPLE_DATA_FILE,
-                   output_rdf = None) -> pd.DataFrame:
+                   input_rdf: str = path.join(const.DATA_FILE_FOLDER, const.BASE_RDF_FILE),
+                   data_file: str = const.SAMPLE_DATA_FILE,
+                   output_rdf: str = "") -> tuple[str, pd.DataFrame]:
     '''
-    Create a base DataFrame for probing purposes.
+        Create a base DataFrame for probing purposes.
     '''
     # Parse the definition file to figure out the delimiter and column info
-    if data_file is None:
+    if not data_file:
         data_file = const.SAMPLE_DATA_FILE
-    if output_rdf is None:
+    if not output_rdf:
         output_rdf = path.join(const.DATA_FILE_FOLDER, const.DEFAULT_RDF_FILE)
 
     data_file_path = path.join(const.RAW_FILE_FOLDER, data_file)
@@ -128,11 +132,12 @@ def create_base_df(no_cache: bool = False,
     # Write out the file so we don't have to recompute it later
     write_output(df_transformed, output_file_path, output_delimiter)
 
-    return output_delimiter, df_transformed
+    return (output_delimiter, df_transformed)
+
 
 def run_probe(probe_class, no_cache: bool = False):
     '''
-    Run a probe for the given enum class.
+        Run a probe for the given enum class.
     '''
     delimiter, df = create_base_df(no_cache)
 
@@ -143,16 +148,16 @@ def run_probe(probe_class, no_cache: bool = False):
     # Get the output file name
     grouper_output_base_file = get_probe_file_name(probe_class, GrouperFileType.OUTPUT)
     if not path.exists(grouper_output_base_file) or no_cache:
-        #Run the grouper
+        # Run the grouper
         _ = run_grouper(probe_data_file, None, grouper_output_base_file)
 
     processed_df = load_probe_data(probe_class)
     compare_permuted_lines_to_source(processed_df)
-    #print(f"The data has been processed and saved to {output_file_path}")
+
 
 def get_probe_file_name(probe_class, gf_type: GrouperFileType) -> str:
     '''
-    Get the output file name for the probe based on the enum class name.
+        Get the output file name for the probe based on the enum class name.
     '''
     if isinstance(probe_class, Enum):
         file_name = f"{probe_class.__name__.lower()}{const.DEFAULT_FILE_EXTENSION}"
@@ -169,17 +174,24 @@ def get_probe_file_name(probe_class, gf_type: GrouperFileType) -> str:
 
     return get_grouper_output_file_by_type(file_base, gf_type)
 
-def run_multiple_probes(probe_classes: list, no_cache=False, data_file=None, rdf_file = None, output_rdf=None) -> None:
-    '''
-    Run multiple probes simultaneously and save the comparison results to a file.
 
-    Parameters:
-    -----------
-    probe_classes : List of probe classes to run.
-    no_cache : Bypass caching and recompute the base DataFrame and grouper output.
+def run_multiple_probes(probe_classes: list,
+                        no_cache=False,
+                        data_file: str = "",
+                        rdf_file: str = "",
+                        output_rdf: str = ""
+                        ) -> None:
+    '''
+        Run multiple probes simultaneously and save the comparison results to a file.
+
+        Parameters:
+        -----------
+        probe_classes : List of probe classes to run.
+        no_cache : Bypass caching and recompute the base DataFrame and grouper output.
     '''
     # Create the base DataFrame
-    delimiter, df_base = create_base_df(no_cache, data_file=data_file, input_rdf=rdf_file, output_rdf=output_rdf)
+    delimiter, df_base = create_base_df(
+        no_cache, data_file=data_file, input_rdf=rdf_file, output_rdf=output_rdf)
 
     # Generate all probe rows
     probe_rows_list = []
@@ -198,16 +210,12 @@ def run_multiple_probes(probe_classes: list, no_cache=False, data_file=None, rdf
                                          GrouperFileType.INPUT)
     hrg_output_file = get_probe_file_name("multiple_probes",
                                           GrouperFileType.OUTPUT)
-    # this is just adding the class name to the file name, but we've already done that above, right?
-    #input_file = get_grouper_output_file_by_type(file_base, GrouperFileType.INPUT)
-
 
     write_output(df_combined, hrg_input_file, delimiter)
 
     # Run grouper on the combined DataFrame
     if not path.exists(hrg_output_file) or no_cache:
         run_grouper(hrg_input_file, None, hrg_output_file)
-
 
     grouper_processed_file = get_grouper_output_file_by_type(hrg_output_file, GrouperFileType.FCE)
 
@@ -224,14 +232,15 @@ def run_multiple_probes(probe_classes: list, no_cache=False, data_file=None, rdf
     comparison_file = path.join(
         const.PROCESSED_FILE_FOLDER,
         f"multiple_probes_results{const.DEFAULT_FILE_EXTENSION}"
-        )
+    )
 
     write_output(comparison_df, comparison_file, delimiter)
     print(f"Comparison results saved to {comparison_file}")
 
+
 def load_probe_data(probe_class) -> pd.DataFrame:
     '''
-    Load a probe DataFrame for the given enum class.
+        Load a probe DataFrame for the given enum class.
     '''
     base_output_file_path = get_probe_file_name(probe_class, GrouperFileType.OUTPUT)
     output_file_path = get_grouper_output_file_by_type(base_output_file_path, GrouperFileType.FCE)
@@ -243,22 +252,22 @@ def load_probe_data(probe_class) -> pd.DataFrame:
 
 def compare_multiple_probes(df: pd.DataFrame) -> pd.DataFrame:
     '''
-    Compare probe rows to their corresponding source rows and collect the results.
+        Compare probe rows to their corresponding source rows and collect the results.
 
-    Parameters:
-    -----------
-    d_output : pd.DataFrame
-        The DataFrame containing the grouper output with source and probe rows.
-    Returns: pd.DataFrame
-    --------
+        Parameters:
+        -----------
+        d_output : pd.DataFrame
+            The DataFrame containing the grouper output with source and probe rows.
+        Returns: pd.DataFrame
+        --------
     '''
     source_results = {}
 
     # First pass: Collect source SpellHRG values
     for _, row in df.iterrows():
-        provspno = row["PROVSPNO"]
+        provspno = row[const.SPELL_ID]
         if is_source_row(row):
-            source_results[provspno] = row["SpellHRG"]
+            source_results[provspno] = row[const.SPELL_HRG]
 
     # Create new columns initialized with NaN
     df["BasePROVSPNO"] = pd.NA
@@ -273,9 +282,9 @@ def compare_multiple_probes(df: pd.DataFrame) -> pd.DataFrame:
         if not is_source_row(row):
             try:
                 # Parse probe row PROVSPNO
-                base_provspno, probe, probe_value = parse_child_spell(row["PROVSPNO"])
+                base_provspno, probe, probe_value = parse_child_spell(row[const.SPELL_ID])
                 source_hrg = source_results.get(base_provspno)
-                permuted_hrg = row["SpellHRG"]
+                permuted_hrg = row[const.SPELL_HRG]
                 match = False if source_hrg is None else (permuted_hrg == source_hrg)
 
                 # Update the row with comparison data
@@ -294,21 +303,21 @@ def compare_multiple_probes(df: pd.DataFrame) -> pd.DataFrame:
 
 def compare_permuted_lines_to_source(df: pd.DataFrame):
     '''
-    Compare permuted lines to the source line in the DataFrame.
-    Gets a row from the DataFrame, determines if it's source or permuted,
-    and then compares it to the source row.
+        Compare permuted lines to the source line in the DataFrame.
+        Gets a row from the DataFrame, determines if it's source or permuted,
+        and then compares it to the source row.
     '''
     source_results = {}
     child_results = {}
     for _, row in df.iterrows():
         # For every row, create a new row with the permuted column value
         if is_source_row(row):
-            source_results.update({row["PROVSPNO"]: row["SpellHRG"]})
+            source_results.update({row[const.SPELL_ID]: row[const.SPELL_HRG]})
         else:
-            child_provspno, enum_class, enum_member = parse_child_spell(row["PROVSPNO"])
-            count = child_results.get((child_provspno, row["SpellHRG"]), 0) + 1
-            child_results.update({(child_provspno, row["SpellHRG"]): count})
-            child_results.update({(child_provspno, enum_class, enum_member): row["SpellHRG"]})
+            child_provspno, enum_class, enum_member = parse_child_spell(row[const.SPELL_ID])
+            count = child_results.get((child_provspno, row[const.SPELL_HRG]), 0) + 1
+            child_results.update({(child_provspno, row[const.SPELL_HRG]): count})
+            child_results.update({(child_provspno, enum_class, enum_member): row[const.SPELL_HRG]})
 
     # Let's count the mismatches and display the details.
     mismatch_count = 0
@@ -322,21 +331,21 @@ def compare_permuted_lines_to_source(df: pd.DataFrame):
 
             if source_hrg is None:
                 mismatch_count += 1
-                print(f"Mismatch for PROVSPNO {child_provspno} - {enum_class}.{enum_member}: "
-                      f"child HRG '{child_hrg}' <> source HRG 'None'")
+                print(f"Mismatch for {const.SPELL_ID} {child_provspno} - "
+                      f"{enum_class}.{enum_member}: child HRG '{child_hrg}' <> source HRG 'None'")
 
             elif child_hrg != source_hrg:
                 mismatch_count += 1
-                print(f"Mismatch for PROVSPNO {child_provspno} - {enum_class}.{enum_member}: "
-                      f"child HRG '{child_hrg}' <> source HRG '{source_hrg}'")
+                print(f"Mismatch for {const.SPELL_ID} {child_provspno} - {enum_class}."
+                      f"{enum_member}: child HRG '{child_hrg}' <> source HRG '{source_hrg}'")
 
     print(f"Total mismatches: {mismatch_count}")
 
 
-def parse_child_spell(provspno: str) -> tuple[str, str, str] :
+def parse_child_spell(provspno: str) -> tuple[str, str, str]:
     '''
-    Parse the child spell from the given PROVSPNO.
-    return: original PROVSPNO, enum class name, enum member name
+        Parse the child spell from the given PROVSPNO.
+        return: original PROVSPNO, enum class name, enum member name
     '''
     parts = provspno.split(const.DEFAULT_DELIMITER)
     if len(parts) != 3:
@@ -347,10 +356,10 @@ def parse_child_spell(provspno: str) -> tuple[str, str, str] :
 
 def is_source_row(row: pd.Series) -> bool:
     '''
-    Determine if the given row is a source row.
-    Assumes delimiter is not present in source spell PROVSPNO.
+        Determine if the given row is a source row.
+        Assumes delimiter is not present in source spell PROVSPNO.
     '''
-    provspno = row["PROVSPNO"]
+    provspno = row[const.SPELL_ID]
     if pd.isna(provspno):
         return True  # Treat NaN as a source row
     return const.DEFAULT_DELIMITER not in provspno

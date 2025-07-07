@@ -28,6 +28,8 @@ def parse_definition_file(rdf_file: str) -> tuple[str, list]:
         "TAB DELIMITED": "\t",
         "PIPE DELIMITED": "|"
     }
+    if not rdf_file or not path.exists(rdf_file):
+        raise FileNotFoundError(f"File not found: {rdf_file}")
 
     with open(rdf_file, encoding='utf-8') as file:
         # First line defines the delimiter

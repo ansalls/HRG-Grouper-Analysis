@@ -1,3 +1,8 @@
+'''
+    This module provides a command-line utility to convert all sheets in an Excel workbook
+    into individual CSV files. It checks for conflicts with existing CSV files and allows
+    the user to choose whether to skip or overwrite them.
+'''
 import os
 import sys
 import argparse
@@ -7,11 +12,18 @@ from tqdm import tqdm
 
 
 def get_sheet_names(excel_path):
+    '''
+        Retrieve the names of all sheets in the given Excel file.
+    '''
     xls = pd.ExcelFile(excel_path)
     return xls.sheet_names
 
 
 def check_conflicts(sheet_names, target_dir):
+    '''
+        Check for conflicts by looking for existing CSV files in the target directory
+        that match the sheet names.
+    '''
     conflicts = []
     for sheet in sheet_names:
         csv_path = os.path.join(target_dir, f"{sheet}.csv")
@@ -21,6 +33,10 @@ def check_conflicts(sheet_names, target_dir):
 
 
 def prompt_user_for_conflicts(conflicts):
+    '''
+        Prompt the user to decide how to handle conflicts with existing CSV files.
+        Returns 's' to skip or 'o' to overwrite.
+    '''
     print("Conflicting files detected:")
     for f in conflicts:
         print(f"  {f}")
@@ -33,6 +49,10 @@ def prompt_user_for_conflicts(conflicts):
 
 
 def convert_sheets_to_csv(excel_path, target_dir, skip_conflicts):
+    '''
+        Convert each sheet in the Excel file to a CSV file.
+        If skip_conflicts is True, existing CSV files will not be overwritten.
+    '''
     xls = pd.ExcelFile(excel_path)
     sheet_names = xls.sheet_names
     for sheet in tqdm(sheet_names, desc="Converting sheets", unit="sheet"):
@@ -44,12 +64,16 @@ def convert_sheets_to_csv(excel_path, target_dir, skip_conflicts):
             df = pd.read_excel(xls, sheet_name=sheet)
             df.to_csv(csv_path, index=False)
             logging.info("Saved sheet '%s' to %s", sheet, csv_path)
-        except Exception as e:
+        except (FileNotFoundError, ValueError) as e:
             logging.error("Failed to convert sheet '%s': %s", sheet, e)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Convert all sheets in an Excel workbook to CSV files.")
+    '''
+        Main function to parse command-line arguments and execute the conversion.
+    '''
+    parser = argparse.ArgumentParser(
+        description="Convert all sheets in an Excel workbook to CSV files.")
     parser.add_argument("excel_file", help="Path to the Excel workbook.")
     args = parser.parse_args()
 
@@ -69,7 +93,7 @@ def main():
     skip_conflicts = False
     if conflicts:
         action = prompt_user_for_conflicts(conflicts)
-        skip_conflicts = (action == "s")
+        skip_conflicts = action == "s"
     else:
         logging.info("No conflicting CSV files found.")
 
