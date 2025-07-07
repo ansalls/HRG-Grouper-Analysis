@@ -34,9 +34,17 @@ void write_row(FILE *f, char *cols[], int ncols) {
 }
 
 void make_output_filename(const char *input, char *output, size_t outlen) {
+    // Ensure there is enough space for the new filename, including "_v2" and extension
+    size_t input_len = strlen(input);
+    size_t min_required = 4 + 1; // "_v2" + null terminator
+    if (input_len + min_required > outlen) {
+        // Not enough space, set output to empty string and return
+        if (outlen > 0) output[0] = '\0';
+        return;
+    }
     const char *dot = strrchr(input, '.');
     if (!dot || dot == input) {
-        sprintf_s(output, outlen, "%s_v2", input);
+        snprintf(output, outlen, "%s_v2", input); // snprintf_s is not platform independent
     } else {
         size_t base_len = dot - input;
         if (base_len > outlen - 5) base_len = outlen - 5;

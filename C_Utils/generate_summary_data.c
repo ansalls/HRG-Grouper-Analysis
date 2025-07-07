@@ -245,7 +245,7 @@ int main(int argc, char *argv[]) {
     PRINT_TABLE("DominantProcedure by TRETSPEF", domproc_tretspef, 1, 1, 0)
     PRINT_TABLE("DominantProcedure by MAINSPEF", domproc_mainspef, 1, 1, 0)
 
-    // Ahh, the cleanup
+    // Cleanup
     ct_free(&diag_counts); ct_free(&diag_spellhrg_counts); ct_free(&diag_oper_counts); ct_free(&spellhrg_counts); ct_free(&spellhrg_chap_counts);
     ct_free(&spellhrg_tretspef); ct_free(&spellhrg_mainspef); ct_free(&spellhrgchap_tretspef); ct_free(&spellhrgchap_mainspef);
     ct_free(&domproc_spellhrg); ct_free(&domproc_spellhrgchap); ct_free(&domproc_spellhrgroot); ct_free(&domproc_tretspef); ct_free(&domproc_mainspef);

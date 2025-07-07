@@ -41,9 +41,17 @@ void write_row(FILE *f, char *cols[], int ncols) {
 }
 
 void make_output_filename(const char *input, char *output, size_t outlen) {
+    // Ensure there is enough space for the new filename, including "_v2" and extension
+    size_t input_len = strlen(input);
+    size_t min_required = 4 + 1; // "_v2" + null terminator
+    if (input_len + min_required > outlen) {
+        // Not enough space, set output to empty string and return
+        if (outlen > 0) output[0] = '\0';
+        return;
+    }
     const char *dot = strrchr(input, '.');
     if (!dot || dot == input) {
-        snprintf(output, outlen, "%s_v2", input);
+        snprintf(output, outlen, "%s_v2", input); // snprintf_s is not platform independent
     } else {
         size_t base_len = dot - input;
         if (base_len > outlen - 5) base_len = outlen - 5;
@@ -68,6 +76,7 @@ void generate_combinations(FILE *out, char *orig_cols[], int ncols, int provspno
             }
         }
         static char provspno_buf[PROVSPNO_MAX];
+         // snprintf_s is not platform independent
         snprintf(provspno_buf, PROVSPNO_MAX, "%s|Combination|%d", orig_cols[provspno_idx], combo_start + ncombos + 1);
         comb_cols[provspno_idx] = provspno_buf;
         write_row(out, comb_cols, ncols);
@@ -94,7 +103,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     char line[MAX_LINE_LEN];
-    char *cols[MAX_COLS];
+    char *cols[MAX_COLS] = {NULL};
     int ncols = 0;
     int diag_start = -1, ndiags = 0, provspno_idx = -1;
     int combo_counter = 0;
@@ -114,7 +123,7 @@ int main(int argc, char *argv[]) {
         if (strncmp(cols[i], "PROVSPNO", 8) == 0) provspno_idx = i;
     }
     for (int i = diag_start; i < ncols; ++i) {
-        if (strncmp(cols[i], "DIAG_", 5) == 0) ndiags++;
+        if (cols[i] != NULL && strncmp(cols[i], "DIAG_", 5) == 0) ndiags++;
         else break;
     }
     if (diag_start < 0 || ndiags < 1 || provspno_idx < 0) {

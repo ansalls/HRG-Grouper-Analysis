@@ -39,9 +39,17 @@ void write_row(FILE *f, char *cols[], int ncols) {
 }
 
 void make_output_filename(const char *input, char *output, size_t outlen) {
+    // Ensure there is enough space for the new filename, including "_v2" and extension
+    size_t input_len = strlen(input);
+    size_t min_required = 4 + 1; // "_v2" + null terminator
+    if (input_len + min_required > outlen) {
+        // Not enough space, set output to empty string and return
+        if (outlen > 0) output[0] = '\0';
+        return;
+    }
     const char *dot = strrchr(input, '.');
     if (!dot || dot == input) {
-        snprintf(output, outlen, "%s_v2", input);
+        snprintf(output, outlen, "%s_v2", input); // snprintf_s is not platform independent
     } else {
         size_t base_len = dot - input;
         if (base_len > outlen - 5) base_len = outlen - 5;
@@ -113,7 +121,7 @@ int main(int argc, char *argv[]) {
     }
 
     char line[MAX_LINE_LEN];
-    char *cols[MAX_COLS];
+    char *cols[MAX_COLS] = {NULL};
     int ncols = 0, diag_start = -1, diag_end = -1, provspno_idx = -1;
 
     // Handle header
@@ -175,6 +183,7 @@ int main(int argc, char *argv[]) {
             for (int i = 0; i < ncols; ++i) new_cols[i] = cols[i];
             new_cols[empty_idx] = diag_list[d];
             static char provspno_buf[MAX_PROVSPNO_LEN*2];
+            // snprintf_s is not platform independent
             snprintf(provspno_buf, sizeof(provspno_buf), "%s|%s", cols[provspno_idx], diag_list[d]);
             new_cols[provspno_idx] = provspno_buf;
             write_row(fout, new_cols, ncols);

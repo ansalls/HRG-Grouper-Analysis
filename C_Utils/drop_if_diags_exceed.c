@@ -42,9 +42,17 @@ void write_row(FILE *f, char *cols[], int ncols) {
 }
 
 void make_output_filename(const char *input, char *output, size_t outlen) {
+    // Ensure there is enough space for the new filename, including "_v2" and extension
+    size_t input_len = strlen(input);
+    size_t min_required = 4 + 1; // "_v2" + null terminator
+    if (input_len + min_required > outlen) {
+        // Not enough space, set output to empty string and return
+        if (outlen > 0) output[0] = '\0';
+        return;
+    }
     const char *dot = strrchr(input, '.');
     if (!dot || dot == input) {
-        snprintf(output, outlen, "%s_v2", input);
+        snprintf(output, outlen, "%s_v2", input); // snprintf_s is not platform independent
     } else {
         size_t base_len = dot - input;
         if (base_len > outlen - 5) base_len = outlen - 5;
@@ -101,8 +109,7 @@ void get_timestamp(char *buf, size_t buflen) {
 int main(int argc, char *argv[]) {
     char timestamp[32];
     clock_t start_time = clock();
-    //get_timestamp(timestamp, sizeof(timestamp));
-    //printf("[%s] [DEBUG] Program started\n", timestamp);
+
     int debug = 0;
     int arg_offset = 0;
     if (argc > 1 && strcmp(argv[1], "-d") == 0) {
@@ -117,8 +124,7 @@ int main(int argc, char *argv[]) {
         fputs("[ERROR] Not enough arguments provided.\n", stderr);
         return 1;
     }
-    //get_timestamp(timestamp, sizeof(timestamp));
-    //printf("[%s] [DEBUG] Args parsed.\n", timestamp);
+
     const char *infilename = argv[1 + arg_offset];
     if (argc >= 3 + arg_offset) {
         strncpy_s(outfilename, sizeof(outfilename), argv[2 + arg_offset], _TRUNCATE);
@@ -126,8 +132,7 @@ int main(int argc, char *argv[]) {
     } else {
         make_output_filename(infilename, outfilename, sizeof(outfilename));
     }
-    //get_timestamp(timestamp, sizeof(timestamp));
-    //printf("[%s] [DEBUG] Input: %s, Output: %s\n", timestamp, infilename, outfilename);
+
     FILE *fin = NULL;
     FILE *fout = NULL;
     if (fopen_s(&fin, infilename, "r") != 0) {
@@ -135,16 +140,14 @@ int main(int argc, char *argv[]) {
         fprintf_s(stderr, "[%s] [ERROR] Could not open input file: %s\n", timestamp, infilename);
         return 1;
     }
-    //get_timestamp(timestamp, sizeof(timestamp));
-    //printf("[%s] [DEBUG] Input file opened.\n", timestamp);
+
     if (fopen_s(&fout, outfilename, "w") != 0) {
         get_timestamp(timestamp, sizeof(timestamp));
         fprintf_s(stderr, "[%s] [ERROR] Could not open output file: %s\n", timestamp, outfilename);
         fclose(fin);
         return 1;
     }
-    //get_timestamp(timestamp, sizeof(timestamp));
-    //printf("[%s] [DEBUG] Output file opened.\n", timestamp);
+
     char line[MAX_LINE_LEN];
     char *cols[MAX_COLS];
     int ncols = 0, provspno_idx = -1, diag_start = -1, diag_end = -1;
@@ -163,13 +166,12 @@ int main(int argc, char *argv[]) {
         free(provs);
         return 1;
     }
-    //get_timestamp(timestamp, sizeof(timestamp));
-    //printf("[%s] [DEBUG] Header read.\n", timestamp);
+
 
     char header[MAX_LINE_LEN];
     strncpy_s(header, sizeof(header), line, _TRUNCATE);
     header[sizeof(header)-1] = 0;
-    memset(cols, 0, sizeof(cols));
+    memset(cols, 0, sizeof(cols)); // memset_s is not platform independent
     ncols = split_line(header, cols, MAX_COLS);
     for (int i = 0; i < ncols; ++i) {
         if (strncmp(cols[i], "PROVSPNO", 8) == 0) provspno_idx = i;
@@ -179,8 +181,7 @@ int main(int argc, char *argv[]) {
     for (int i = diag_start; i < ncols; ++i) {
         if (cols[i] && strncmp(cols[i], "DIAG_", 5) == 0) diag_end = i;
     }
-    //get_timestamp(timestamp, sizeof(timestamp));
-    //printf("[%s] [DEBUG] Header parsed. ncols=%d, provspno_idx=%d, diag_start=%d, diag_end=%d\n", timestamp, ncols, provspno_idx, diag_start, diag_end);
+
     if (debug) {
         get_timestamp(timestamp, sizeof(timestamp));
         printf("[%s] [DEBUG] Header columns: %d\n", timestamp, ncols);
@@ -209,8 +210,6 @@ int main(int argc, char *argv[]) {
         free(provs);
         return 1;
     }
-    //get_timestamp(timestamp, sizeof(timestamp));
-    //printf("[%s] [DEBUG] Starting first pass.\n", timestamp);
 
     // First pass: find min populated DIAG count for each PROVSPNO root
     while (fgets(line, sizeof(line), fin)) {
@@ -234,8 +233,6 @@ int main(int argc, char *argv[]) {
         find_or_add_root(provs, &nprovs, root, diag_count);
     }
     fclose(fin);
-    //get_timestamp(timestamp, sizeof(timestamp));
-    //printf("[%s] [DEBUG] First pass complete.\n", timestamp);
 
     // Second pass: write only rows with min diag count for root
     if (fin) fclose(fin);
@@ -245,8 +242,7 @@ int main(int argc, char *argv[]) {
         free(provs);
         return 1;
     }
-    //get_timestamp(timestamp, sizeof(timestamp));
-    //printf("[%s] [DEBUG] Second pass started.\n", timestamp);
+
     if (!fgets(line, sizeof(line), fin)) {
         fclose(fin);
         fclose(fout);
