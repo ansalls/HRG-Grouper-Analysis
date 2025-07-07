@@ -3,82 +3,13 @@
 //  PROVSPNO with the appended value (for tracking), and writes all rows to output.
 // Usage: append_diag diag_list.txt data.csv [output.csv]
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-#include <ctype.h>
+#include "csv_utils.h"
 
-#define MAX_LINE_LEN 100000
-#define MAX_COLS 400
-#define MAX_DIAGS 99
-#define MAX_DIAG_LEN 64
-#define MAX_PROVSPNO_LEN 256
 #define MAX_DIAG_LIST 10000
-
-int split_line(char *line, char *cols[], int max_cols) {
-    int count = 0;
-    char *start = line;
-    char *p = line;
-    while (*p && count < max_cols) {
-        if (*p == ',') {
-            *p = '\0';
-            cols[count++] = start;
-            start = p + 1;
-        }
-        p++;
-    }
-    cols[count++] = start;
-    return count;
-}
-
-void write_row(FILE *f, char *cols[], int ncols) {
-    for (int i = 0; i < ncols; ++i) {
-        fprintf_s(f, "%s%s", cols[i], (i < ncols-1) ? "," : "\n");
-    }
-}
-
-void make_output_filename(const char *input, char *output, size_t outlen) {
-    // Ensure there is enough space for the new filename, including "_v2" and extension
-    size_t input_len = strlen(input);
-    size_t min_required = 4 + 1; // "_v2" + null terminator
-    if (input_len + min_required > outlen) {
-        // Not enough space, set output to empty string and return
-        if (outlen > 0) output[0] = '\0';
-        return;
-    }
-    const char *dot = strrchr(input, '.');
-    if (!dot || dot == input) {
-        snprintf(output, outlen, "%s_v2", input); // snprintf_s is not platform independent
-    } else {
-        size_t base_len = dot - input;
-        if (base_len > outlen - 5) base_len = outlen - 5;
-        strncpy_s(output, outlen, input, base_len);
-        output[base_len] = '\0';
-        strncat_s(output, outlen, "_v2", _TRUNCATE);
-        strncat_s(output, outlen, dot, _TRUNCATE);
-    }
-}
-
-void trim(char *s) {
-    char *end;
-    while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n') s++;
-    end = s + strlen(s) - 1;
-    while (end > s && (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n')) *end-- = 0;
-}
-
-int diag_eq(const char *a, const char *b) {
-    while (*a && *b) {
-        if (tolower(*a) != tolower(*b)) return 0;
-        a++; b++;
-    }
-    return *a == *b;
-}
 
 int main(int argc, char *argv[]) {
     if (argc < 3) {
-        fprintf_s(stderr, "Usage: %s diag_list.txt data.csv [output.csv]\n", argv[0]);
-        return 1;
+        print_usage_and_exit(argv[0], "diag_list.txt data.csv [output.csv]");
     }
     const char *diaglistfile = argv[1];
     const char *datafile = argv[2];
@@ -99,7 +30,7 @@ int main(int argc, char *argv[]) {
     }
     char dline[MAX_DIAG_LEN];
     while (fgets(dline, sizeof(dline), fdiag)) {
-        trim(dline);
+        trim_string(dline);
         if (dline[0] == 0) continue;
         strncpy_s(diag_list[diag_list_count], MAX_DIAG_LEN, dline, MAX_DIAG_LEN-1);
         diag_list[diag_list_count][MAX_DIAG_LEN-1] = 0;
@@ -110,13 +41,7 @@ int main(int argc, char *argv[]) {
 
     FILE *fin = NULL;
     FILE *fout = NULL;
-    if (fopen_s(&fin, datafile, "r") != 0 || !fin) {
-        fprintf_s(stderr, "Could not open data file: %s\n", datafile);
-        return 1;
-    }
-    if (fopen_s(&fout, outfilename, "w") != 0 || !fout) {
-        fprintf_s(stderr, "Could not open output file: %s\n", outfilename);
-        if (fin) fclose(fin);
+    if (!open_input_output_files(datafile, outfilename, &fin, &fout)) {
         return 1;
     }
 
@@ -127,25 +52,25 @@ int main(int argc, char *argv[]) {
     // Handle header
     if (!fgets(line, sizeof(line), fin)) {
         fprintf_s(stderr, "Empty input file.\n");
-        fclose(fin); fclose(fout);
+        close_files(fin, fout);
         return 1;
     }
     fputs(line, fout);
     char header[MAX_LINE_LEN];
     strncpy_s(header, sizeof(header), line, _TRUNCATE);
     header[sizeof(header)-1] = 0;
-    ncols = split_line(header, cols, MAX_COLS);
-    for (int i = 0; i < ncols; ++i) {
-        if (strncmp(cols[i], "DIAG_01", 8) == 0) diag_start = i;
-        if (strncmp(cols[i], "DIAG_", 5) == 0) diag_end = i;
-        if (strncmp(cols[i], "PROVSPNO", 8) == 0) provspno_idx = i;
+    ncols = csv_split_line(header, cols, MAX_COLS);
+
+    if (find_diag_columns(cols, ncols, &diag_start, &diag_end) != 0) {
+        fprintf_s(stderr, "Could not find DIAG_XX columns in header.\n");
+        close_files(fin, fout);
+        return 1;
     }
-    for (int i = diag_start; i < ncols; ++i) {
-        if (cols[i] && strncmp(cols[i], "DIAG_", 5) == 0) diag_end = i;
-    }
-    if (diag_start < 0 || diag_end < diag_start || provspno_idx < 0) {
-        fprintf_s(stderr, "Could not find DIAG_XX or PROVSPNO columns in header.\n");
-        fclose(fin); fclose(fout);
+
+    provspno_idx = find_column_by_name(cols, ncols, "PROVSPNO");
+    if (provspno_idx < 0) {
+        fprintf_s(stderr, "Could not find PROVSPNO column in header.\n");
+        close_files(fin, fout);
         return 1;
     }
 
@@ -155,17 +80,17 @@ int main(int argc, char *argv[]) {
         char row[MAX_LINE_LEN];
         strncpy_s(row, sizeof(row), line, _TRUNCATE);
         row[sizeof(row)-1] = 0;
-        int row_ncols = split_line(row, cols, MAX_COLS);
+        int row_ncols = csv_split_line(row, cols, MAX_COLS);
         if (row_ncols < ncols) {
             for (int i = row_ncols; i < ncols; ++i) cols[i] = "";
         }
-        write_row(fout, cols, ncols);
+        csv_write_row(fout, cols, ncols);
 
         // Add new new diagnosis to the list
         for (int d = 0; d < diag_list_count; ++d) {
             bool found = false;
             for (int i = diag_start; i <= diag_end; ++i) {
-                if (cols[i][0] && diag_eq(cols[i], diag_list[d])) {
+                if (cols[i][0] && diag_codes_equal(cols[i], diag_list[d])) {
                     found = true;
                     break;
                 }
@@ -186,10 +111,9 @@ int main(int argc, char *argv[]) {
             // snprintf_s is not platform independent
             snprintf(provspno_buf, sizeof(provspno_buf), "%s|%s", cols[provspno_idx], diag_list[d]);
             new_cols[provspno_idx] = provspno_buf;
-            write_row(fout, new_cols, ncols);
+            csv_write_row(fout, new_cols, ncols);
         }
     }
-    fclose(fin);
-    fclose(fout);
+    close_files(fin, fout);
     return 0;
 }

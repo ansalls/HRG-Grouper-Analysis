@@ -2,61 +2,9 @@
 // on a delimiter, and writes to a new CSV file.
 // Usage: split_field [-n Nth instance or -1 for last] [-c col_delim] [-d split_delim] input.csv [output.csv] col_to_split
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-#include <ctype.h>
+#include "csv_utils.h"
 
-#define MAX_LINE_LEN 100000
-#define MAX_COLS 400
 #define MAX_DELIM_LEN 16
-
-// Mind this has a different signature than other implementations as it
-//  needs to support a configurable delimiter for splitting the fields
-int split_line(char *line, char *cols[], int max_cols, char col_delim) {
-    int count = 0;
-    char *start = line;
-    char *p = line;
-    while (*p && count < max_cols) {
-        if (*p == col_delim) {
-            *p = '\0';
-            cols[count++] = start;
-            start = p + 1;
-        }
-        p++;
-    }
-    cols[count++] = start;
-    return count;
-}
-
-void write_row(FILE *f, char *cols[], int ncols, char col_delim) {
-    for (int i = 0; i < ncols; ++i) {
-        fprintf_s(f, "%s%c", cols[i], (i < ncols-1) ? col_delim : '\n');
-    }
-}
-
-void make_output_filename(const char *input, char *output, size_t outlen) {
-    // Ensure there is enough space for the new filename, including "_v2" and extension
-    size_t input_len = strlen(input);
-    size_t min_required = 4 + 1; // "_v2" + null terminator
-    if (input_len + min_required > outlen) {
-        // Not enough space, set output to empty string and return
-        if (outlen > 0) output[0] = '\0';
-        return;
-    }
-    const char *dot = strrchr(input, '.');
-    if (!dot || dot == input) {
-        snprintf(output, outlen, "%s_v2", input); // snprintf_s is not platform independent
-    } else {
-        size_t base_len = dot - input;
-        if (base_len > outlen - 5) base_len = outlen - 5;
-        strncpy_s(output, outlen, input, base_len);
-        output[base_len] = '\0';
-        strncat_s(output, outlen, "_v2", _TRUNCATE);
-        strncat_s(output, outlen, dot, _TRUNCATE);
-    }
-}
 
 // Find the pointer to the nth (1-based, or -1 for last) occurrence of delim in str
 char *find_nth_delim(const char *str, char delim, int n) {
@@ -120,8 +68,7 @@ int main(int argc, char *argv[]) {
     }
 
     FILE *fin = NULL, *fout = NULL;
-    if (fopen_s(&fin, infilename, "r") != 0 || fopen_s(&fout, outfilename, "w") != 0) {
-        fprintf_s(stderr, "Error opening files.\n");
+    if (!open_input_output_files(infilename, outfilename, &fin, &fout)) {
         return 1;
     }
     char line[MAX_LINE_LEN];
@@ -131,22 +78,20 @@ int main(int argc, char *argv[]) {
     // Read header
     if (!fgets(line, sizeof(line), fin)) {
         fprintf_s(stderr, "Empty input file.\n");
-        fclose(fin);
-        fclose(fout);
+        close_files(fin, fout);
         return 1;
     }
-    // Not sure why this is needed here but not in other programs. Did I do something
-    // different in the other programs? Or is it just a quirk of this specific input file?
+
+
     line[strcspn(line, "\r\n")] = '\0';
 
     char header[MAX_LINE_LEN];
     strncpy_s(header, sizeof(header), line, _TRUNCATE);
     header[sizeof(header)-1] = 0;
-    ncols = split_line(header, cols, MAX_COLS, col_delim);
+    ncols = csv_split_line_delim(header, cols, MAX_COLS, col_delim);
     if (col_to_split > ncols) {
         fprintf_s(stderr, "Column to split out of range. File has %d columns.\n", ncols);
-        fclose(fin);
-        fclose(fout);
+        close_files(fin, fout);
         return 1;
     }
     // Write updated header - insert new column after col_to_split
@@ -167,7 +112,7 @@ int main(int argc, char *argv[]) {
         char row[MAX_LINE_LEN];
         strncpy_s(row, sizeof(row), line, _TRUNCATE);
         row[sizeof(row)-1] = 0;
-        int row_ncols = split_line(row, cols, MAX_COLS, col_delim);
+        int row_ncols = csv_split_line_delim(row, cols, MAX_COLS, col_delim);
         if (row_ncols < ncols) {
             for (int i = row_ncols; i < ncols; ++i) cols[i] = "";
         }
@@ -195,10 +140,8 @@ int main(int argc, char *argv[]) {
                 outcols[outidx++] = cols[i];
             }
         }
-        write_row(fout, outcols, ncols+1, col_delim);
+        csv_write_row_delim(fout, outcols, ncols+1, col_delim);
     }
-    fclose(fin);
-    fclose(fout);
-    //printf("Inserted new column at position: %d\n", col_to_split + 1);
+    close_files(fin, fout);
     return 0;
 }

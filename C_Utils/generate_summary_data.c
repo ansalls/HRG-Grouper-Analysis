@@ -1,13 +1,7 @@
 // Generates a summary of counts for specified columns and their combinations in a CSV file.
 // Usage: generate_summary_data input.csv [summary_output.txt]
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-
-#define MAX_LINE_LEN 100000
-#define MAX_COLS 400
+#include "csv_utils.h"
 
 // Bit of a mess I've made trying to fix some memory issues, but is so specific to
 //  this particular use case that there's little point in spending time to clean it up.
@@ -70,26 +64,9 @@ void ct_inc(CountTable *ct, const char *k1, const char *k2, const char *k3) {
     ct->size++;
 }
 
-int split_line(char *line, char *cols[], int max_cols) {
-    int count = 0;
-    char *start = line;
-    char *p = line;
-    while (*p && count < max_cols) {
-        if (*p == ',') {
-            *p = '\0';
-            cols[count++] = start;
-            start = p + 1;
-        }
-        p++;
-    }
-    cols[count++] = start;
-    return count;
-}
-
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        fprintf_s(stderr, "Usage: %s input.csv [summary_output.txt]\n", argv[0]);
-        return 1;
+        print_usage_and_exit(argv[0], "input.csv [summary_output.txt]");
     }
     const char *infilename = argv[1];
     char outfilename[1024];
@@ -107,13 +84,7 @@ int main(int argc, char *argv[]) {
 
     FILE *fin = NULL;
     FILE *fout = NULL;
-    if (fopen_s(&fin, infilename, "r") != 0 || !fin) {
-        fprintf_s(stderr, "Could not open input file\n");
-        return 1;
-    }
-    if (fopen_s(&fout, outfilename, "w") != 0 || !fout) {
-        fprintf_s(stderr, "Could not open output file\n");
-        fclose(fin);
+    if (!open_input_output_files(infilename, outfilename, &fin, &fout)) {
         return 1;
     }
 
@@ -124,9 +95,13 @@ int main(int argc, char *argv[]) {
     int oper_idxs[MAX_COLS], noper = 0;
     int spellhrg_idx = -1, tretspef_idx = -1, mainspef_idx = -1, domproc_idx = -1;
 
-    if (!fgets(line, sizeof(line), fin)) { fprintf_s(stderr, "Empty input file\n"); fclose(fin); fclose(fout); return 1; }
+    if (!fgets(line, sizeof(line), fin)) {
+        fprintf_s(stderr, "Empty input file\n");
+        close_files(fin, fout);
+        return 1;
+    }
     line[strcspn(line, "\r\n")] = 0;
-    ncols = split_line(line, cols, MAX_COLS);
+    ncols = csv_split_line(line, cols, MAX_COLS);
     for (int i = 0; i < ncols; ++i) {
         if (strncmp(cols[i], "DIAG_", 5) == 0) diag_idxs[ndiag++] = i;
         if (strncmp(cols[i], "OPER_", 5) == 0) oper_idxs[noper++] = i;
@@ -137,7 +112,8 @@ int main(int argc, char *argv[]) {
     }
     if (ndiag == 0 || spellhrg_idx < 0) {
         fprintf_s(stderr, "Missing DIAG_XX or SpellHRG columns\n");
-        fclose(fin); fclose(fout); return 1;
+        close_files(fin, fout);
+        return 1;
     }
 
     // Prepare count tables
@@ -156,7 +132,7 @@ int main(int argc, char *argv[]) {
             printf("Processed %ld rows...\n", row_counter);
         }
         line[strcspn(line, "\r\n")] = 0;
-        split_line(line, cols, MAX_COLS);
+        csv_split_line(line, cols, MAX_COLS);
         // DIAG code counts
         for (int d = 0; d < ndiag; ++d) {
             char *diag = cols[diag_idxs[d]];
@@ -218,7 +194,6 @@ int main(int argc, char *argv[]) {
         }
     }
     printf("Processed %ld rows (total).\n", row_counter);
-    fclose(fin);
 
     // Flush the summaries
     #define PRINT_TABLE(title, tab, k1, k2, k3) \
@@ -250,7 +225,7 @@ int main(int argc, char *argv[]) {
     ct_free(&spellhrg_tretspef); ct_free(&spellhrg_mainspef); ct_free(&spellhrgchap_tretspef); ct_free(&spellhrgchap_mainspef);
     ct_free(&domproc_spellhrg); ct_free(&domproc_spellhrgchap); ct_free(&domproc_spellhrgroot); ct_free(&domproc_tretspef); ct_free(&domproc_mainspef);
 
-    fclose(fout);
+    close_files(fin, fout);
     printf("Summary written to %s\n", outfilename);
     return 0;
 }

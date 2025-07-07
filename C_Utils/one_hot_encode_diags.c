@@ -1,57 +1,7 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
+#include "csv_utils.h"
 
-#define MAX_LINE_LEN 100000
-#define MAX_COLS 400
-#define MAX_DIAGS 100
 #define MAX_CODES 15000
 #define MAX_CODE_LEN 10
-
-int split_line(char *line, char *cols[], int max_cols) {
-    int count = 0;
-    char *start = line;
-    char *p = line;
-    while (*p && count < max_cols) {
-        if (*p == ',') {
-            *p = '\0';
-            cols[count++] = start;
-            start = p + 1;
-        }
-        p++;
-    }
-    cols[count++] = start;
-    return count;
-}
-
-void write_row(FILE *f, char *cols[], int ncols) {
-    for (int i = 0; i < ncols; ++i) {
-        fprintf_s(f, "%s%s", cols[i], (i < ncols-1) ? "," : "\n");
-    }
-}
-
-void make_output_filename(const char *input, char *output, size_t outlen) {
-    // Ensure there is enough space for the new filename, including "_v2" and extension
-    size_t input_len = strlen(input);
-    size_t min_required = 4 + 1; // "_v2" + null terminator
-    if (input_len + min_required > outlen) {
-        // Not enough space, set output to empty string and return
-        if (outlen > 0) output[0] = '\0';
-        return;
-    }
-    const char *dot = strrchr(input, '.');
-    if (!dot || dot == input) {
-        snprintf(output, outlen, "%s_v2", input); // snprintf_s is not platform independent
-    } else {
-        size_t base_len = dot - input;
-        if (base_len > outlen - 5) base_len = outlen - 5;
-        strncpy_s(output, outlen, input, base_len);
-        output[base_len] = '\0';
-        strncat_s(output, outlen, "_v2", _TRUNCATE);
-        strncat_s(output, outlen, dot, _TRUNCATE);
-    }
-}
 
 int cmp_codes(const void *a, const void *b) {
     return strcmp(*(const char **)a, *(const char **)b);
@@ -59,8 +9,7 @@ int cmp_codes(const void *a, const void *b) {
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        fprintf_s(stderr, "Usage: %s input.csv [output.csv]\n", argv[0]);
-        return 1;
+        print_usage_and_exit(argv[0], "input.csv [output.csv]");
     }
     const char *infilename = argv[1];
     char outfilename[1024];
@@ -93,14 +42,13 @@ int main(int argc, char *argv[]) {
 
     if (!fgets(line, sizeof(line), fin)) {
         fprintf_s(stderr, "Empty input file.\n");
-        fclose(fin);
-        fclose(fout);
+        close_files(fin, fout);
         return 1;
     }
     char header[MAX_LINE_LEN];
     strncpy_s(header, sizeof(header), line, sizeof(header)-1);
     header[sizeof(header)-1] = 0;
-    ncols = split_line(header, cols, MAX_COLS);
+    ncols = csv_split_line(header, cols, MAX_COLS);
     for (int i = 0; i < ncols; ++i) {
         if (strncmp(cols[i], "DIAG_01", 8) == 0) diag_start = i;
         if (strncmp(cols[i], "DIAG_", 5) == 0) diag_end = i;
@@ -110,8 +58,7 @@ int main(int argc, char *argv[]) {
     }
     if (diag_start < 0 || diag_end < diag_start) {
         fprintf_s(stderr, "Could not find DIAG_XX columns in header.\n");
-        fclose(fin);
-        fclose(fout);
+        close_files(fin, fout);
         return 1;
     }
 
@@ -120,7 +67,7 @@ int main(int argc, char *argv[]) {
         char row[MAX_LINE_LEN];
         strncpy_s(row, sizeof(row), line, sizeof(row)-1);
         row[sizeof(row)-1] = 0;
-        int row_ncols = split_line(row, cols, MAX_COLS);
+        int row_ncols = csv_split_line(row, cols, MAX_COLS);
         for (int i = diag_start; i <= diag_end && i < row_ncols; ++i) {
             char *val = cols[i];
             if (val && val[0]) {
@@ -158,8 +105,7 @@ int main(int argc, char *argv[]) {
     // Write header
     if (!fgets(line, sizeof(line), fin)) {
         fprintf_s(stderr, "Unexpected error reading header.\n");
-        fclose(fin);
-        fclose(fout);
+        close_files(fin, fout);
         for (int i = 0; i < code_count; ++i) free(codes[i]);
         return 1;
     }
@@ -180,7 +126,7 @@ int main(int argc, char *argv[]) {
         char row[MAX_LINE_LEN];
         strncpy_s(row, sizeof(row), line, sizeof(row)-1);
         row[sizeof(row)-1] = 0;
-        int row_ncols = split_line(row, cols, MAX_COLS);
+        int row_ncols = csv_split_line(row, cols, MAX_COLS);
         // Write original columns
         for (int i = 0; i < ncols; ++i) {
             fprintf_s(fout, "%s%s", cols[i], (i < ncols-1) ? "," : "");
@@ -222,8 +168,7 @@ int main(int argc, char *argv[]) {
     }
     printf("\rProgress: 100%%\n");
 
-    fclose(fin);
-    fclose(fout);
+    close_files(fin, fout);
     for (int i = 0; i < code_count; ++i) free(codes[i]);
     printf("Done. Output written to %s\n", outfilename);
     return 0;

@@ -1,69 +1,7 @@
 // Reads a CSV file, copies lines to a new file only if two specified columns match.
 // Usage: col_substring_compare [-n negation] [-i insensitve casing] [-r right-side] [-l length] input.csv [output.csv] col1 col2
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-#include <ctype.h>
-
-#define MAX_LINE_LEN 100000
-#define MAX_COLS 400
-
-int split_line(char *line, char *cols[], int max_cols) {
-    int count = 0;
-    char *start = line;
-    char *p = line;
-    while (*p && count < max_cols) {
-        if (*p == ',') {
-            *p = '\0';
-            cols[count++] = start;
-            start = p + 1;
-        }
-        p++;
-    }
-    cols[count++] = start;
-    return count;
-}
-
-void write_row(FILE *f, char *cols[], int ncols) {
-    for (int i = 0; i < ncols; ++i) {
-        fprintf_s(f, "%s%s", cols[i], (i < ncols-1) ? "," : "\n");
-    }
-}
-
-void make_output_filename(const char *input, char *output, size_t outlen) {
-    // Ensure there is enough space for the new filename, including "_v2" and extension
-    size_t input_len = strlen(input);
-    size_t min_required = 4 + 1; // "_v2" + null terminator
-    if (input_len + min_required > outlen) {
-        // Not enough space, set output to empty string and return
-        if (outlen > 0) output[0] = '\0';
-        return;
-    }
-    const char *dot = strrchr(input, '.');
-    if (!dot || dot == input) {
-        snprintf(output, outlen, "%s_v2", input); // snprintf_s is not platform independent
-    } else {
-        size_t base_len = dot - input;
-        if (base_len > outlen - 5) base_len = outlen - 5;
-        strncpy_s(output, outlen, input, base_len);
-        output[base_len] = '\0';
-        strncat_s(output, outlen, "_v2", _TRUNCATE);
-        strncat_s(output, outlen, dot, _TRUNCATE);
-    }
-}
-
-// I know I've done one of these before. Consider replacing it with this one.
-int strncmp_case(const char *a, const char *b, size_t n) {
-    for (size_t i = 0; i < n; ++i) {
-        char ca = a[i], cb = b[i];
-        if (ca == 0 || cb == 0) return ca - cb;
-        if (tolower((unsigned char)ca) != tolower((unsigned char)cb))
-            return (unsigned char)tolower(ca) - (unsigned char)tolower(cb);
-    }
-    return 0;
-}
+#include "csv_utils.h"
 
 bool substrings_equal(const char *s1, const char *s2, int len, bool right, bool case_insensitive) {
     int l1 = (int)strlen(s1), l2 = (int)strlen(s2);
@@ -75,7 +13,7 @@ bool substrings_equal(const char *s1, const char *s2, int len, bool right, bool 
     const char *sub1 = right ? s1 + l1 - cmp_len : s1;
     const char *sub2 = right ? s2 + l2 - cmp_len : s2;
     if (case_insensitive)
-        return strncmp_case(sub1, sub2, cmp_len) == 0;
+        return strcasecmp_n(sub1, sub2, cmp_len) == 0;
     else
         return strncmp(sub1, sub2, cmp_len) == 0;
 }
@@ -108,8 +46,7 @@ int main(int argc, char *argv[]) {
     }
 
     if ((argc != 4 + arg_offset) && (argc != 5 + arg_offset)) {
-        fprintf_s(stderr, "Usage: %s [-n] [-i] [-r] [-l length] input.csv [output.csv] col1 col2\n", argv[0]);
-        return 1;
+        print_usage_and_exit(argv[0], "[-n] [-i] [-r] [-l length] input.csv [output.csv] col1 col2");
     }
     const char *infilename = argv[arg_offset + 1];
     int col1, col2;
@@ -129,8 +66,7 @@ int main(int argc, char *argv[]) {
     }
     FILE *fin = NULL;
     FILE *fout = NULL;
-    if (fopen_s(&fin, infilename, "r") != 0 || fopen_s(&fout, outfilename, "w") != 0) {
-        fprintf_s(stderr, "Error opening files.\n");
+    if (!open_input_output_files(infilename, outfilename, &fin, &fout)) {
         return 1;
     }
     char line[MAX_LINE_LEN];
@@ -140,19 +76,17 @@ int main(int argc, char *argv[]) {
     // Handle header
     if (!fgets(line, sizeof(line), fin)) {
         fprintf_s(stderr, "Empty input file.\n");
-        fclose(fin);
-        fclose(fout);
+        close_files(fin, fout);
         return 1;
     }
     fputs(line, fout);
     char header[MAX_LINE_LEN];
     strncpy_s(header, sizeof(header), line, _TRUNCATE);
     header[sizeof(header)-1] = 0;
-    ncols = split_line(header, cols, MAX_COLS);
+    ncols = csv_split_line(header, cols, MAX_COLS);
     if (col1 > ncols || col2 > ncols) {
         fprintf_s(stderr, "Column positions out of range. File has %d columns.\n", ncols);
-        fclose(fin);
-        fclose(fout);
+        close_files(fin, fout);
         return 1;
     }
     // Process row
@@ -161,7 +95,7 @@ int main(int argc, char *argv[]) {
         char row[MAX_LINE_LEN];
         strncpy_s(row, sizeof(row), line, _TRUNCATE);
         row[sizeof(row)-1] = 0;
-        int row_ncols = split_line(row, cols, MAX_COLS);
+        int row_ncols = csv_split_line(row, cols, MAX_COLS);
         if (row_ncols < ncols) continue;
         bool equal = substrings_equal(
             cols[col1-1], cols[col2-1],
@@ -171,7 +105,6 @@ int main(int argc, char *argv[]) {
             fprintf_s(fout, "%s\n", line);
         }
     }
-    fclose(fin);
-    fclose(fout);
+    close_files(fin, fout);
     return 0;
 }

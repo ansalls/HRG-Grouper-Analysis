@@ -2,79 +2,15 @@
 //  for each PROVSPNO root matches the minimum for that root.
 // Usage: drop_if_diags_exceed input.csv [output.csv]
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
+#include "csv_utils.h"
 #include <time.h>
 
-#define MAX_LINE_LEN 100000
-#define MAX_COLS 400
 #define MAX_PROVSPNO_ROOT 100000
-#define MAX_PROVSPNO_LEN 256
-#define MAX_DIAGS 99
 
 struct provspno_min {
     char root[MAX_PROVSPNO_LEN];
     int min_count;
 };
-
-int split_line(char *line, char *cols[], int max_cols) {
-    int count = 0;
-    char *start = line;
-    char *p = line;
-    while (*p && count < max_cols) {
-        if (*p == ',') {
-            *p = '\0';
-            cols[count++] = start;
-            start = p + 1;
-        }
-        p++;
-    }
-    cols[count++] = start;
-    return count;
-}
-
-void write_row(FILE *f, char *cols[], int ncols) {
-    for (int i = 0; i < ncols; ++i) {
-        fprintf_s(f, "%s%s", cols[i], (i < ncols-1) ? "," : "\n");
-    }
-}
-
-void make_output_filename(const char *input, char *output, size_t outlen) {
-    // Ensure there is enough space for the new filename, including "_v2" and extension
-    size_t input_len = strlen(input);
-    size_t min_required = 4 + 1; // "_v2" + null terminator
-    if (input_len + min_required > outlen) {
-        // Not enough space, set output to empty string and return
-        if (outlen > 0) output[0] = '\0';
-        return;
-    }
-    const char *dot = strrchr(input, '.');
-    if (!dot || dot == input) {
-        snprintf(output, outlen, "%s_v2", input); // snprintf_s is not platform independent
-    } else {
-        size_t base_len = dot - input;
-        if (base_len > outlen - 5) base_len = outlen - 5;
-        strncpy_s(output, outlen, input, base_len);
-        output[base_len] = '\0';
-        strncat_s(output, outlen, "_v2", _TRUNCATE);
-        strncat_s(output, outlen, dot, _TRUNCATE);
-    }
-}
-
-// Helper: Extract PROVSPNO root (before '|')
-void get_provspno_root(const char *provspno, char *root, size_t maxlen) {
-    const char *pipe = strchr(provspno, '|');
-    if (pipe) {
-        size_t len = pipe - provspno;
-        if (len >= maxlen) len = maxlen - 1;
-        strncpy_s(root, maxlen, provspno, len);
-        root[len] = '\0';
-    } else {
-        strncpy_s(root, maxlen, provspno, _TRUNCATE);
-    }
-}
 
 int find_or_add_root(struct provspno_min *arr, int *n, const char *root, int count) {
     for (int i = 0; i < *n; ++i) {
@@ -118,11 +54,7 @@ int main(int argc, char *argv[]) {
     }
     char outfilename[1024];
     if (argc < 2 + arg_offset) {
-        fputs("Usage: ", stderr);
-        fputs(argv[0], stderr);
-        fputs(" [-d] input.csv [output.csv]\n", stderr);
-        fputs("[ERROR] Not enough arguments provided.\n", stderr);
-        return 1;
+        print_usage_and_exit(argv[0], "[-d] input.csv [output.csv]");
     }
 
     const char *infilename = argv[1 + arg_offset];
@@ -135,16 +67,7 @@ int main(int argc, char *argv[]) {
 
     FILE *fin = NULL;
     FILE *fout = NULL;
-    if (fopen_s(&fin, infilename, "r") != 0) {
-        get_timestamp(timestamp, sizeof(timestamp));
-        fprintf_s(stderr, "[%s] [ERROR] Could not open input file: %s\n", timestamp, infilename);
-        return 1;
-    }
-
-    if (fopen_s(&fout, outfilename, "w") != 0) {
-        get_timestamp(timestamp, sizeof(timestamp));
-        fprintf_s(stderr, "[%s] [ERROR] Could not open output file: %s\n", timestamp, outfilename);
-        fclose(fin);
+    if (!open_input_output_files(infilename, outfilename, &fin, &fout)) {
         return 1;
     }
 
@@ -161,52 +84,28 @@ int main(int argc, char *argv[]) {
     // Handle header
     if (!fgets(line, sizeof(line), fin)) {
         fputs("[ERROR] Empty input file or failed to read header.\n", stderr);
-        fclose(fin);
-        fclose(fout);
+        close_files(fin, fout);
         free(provs);
         return 1;
     }
-
 
     char header[MAX_LINE_LEN];
     strncpy_s(header, sizeof(header), line, _TRUNCATE);
     header[sizeof(header)-1] = 0;
     memset(cols, 0, sizeof(cols)); // memset_s is not platform independent
-    ncols = split_line(header, cols, MAX_COLS);
-    for (int i = 0; i < ncols; ++i) {
-        if (strncmp(cols[i], "PROVSPNO", 8) == 0) provspno_idx = i;
-        if (strncmp(cols[i], "DIAG_01", 8) == 0) diag_start = i;
-        if (strncmp(cols[i], "DIAG_", 5) == 0) diag_end = i;
-    }
-    for (int i = diag_start; i < ncols; ++i) {
-        if (cols[i] && strncmp(cols[i], "DIAG_", 5) == 0) diag_end = i;
+    ncols = csv_split_line(header, cols, MAX_COLS);
+
+    if (find_diag_columns(cols, ncols, &diag_start, &diag_end) != 0) {
+        fputs("[ERROR] Could not find DIAG_XX columns in header.\n", stderr);
+        close_files(fin, fout);
+        free(provs);
+        return 1;
     }
 
-    if (debug) {
-        get_timestamp(timestamp, sizeof(timestamp));
-        printf("[%s] [DEBUG] Header columns: %d\n", timestamp, ncols);
-        printf("[%s] [DEBUG] PROVSPNO index: %d\n", timestamp, provspno_idx);
-        printf("[%s] [DEBUG] DIAG_01 index: %d\n", timestamp, diag_start);
-        printf("[%s] [DEBUG] DIAG_XX last index: %d\n", timestamp, diag_end);
-    }
+    provspno_idx = find_column_by_name(cols, ncols, "PROVSPNO");
     if (provspno_idx < 0) {
         fputs("[ERROR] Could not find PROVSPNO column in header.\n", stderr);
-        fclose(fin);
-        fclose(fout);
-        free(provs);
-        return 1;
-    }
-    if (diag_start < 0) {
-        fputs("[ERROR] Could not find DIAG_01 column in header.\n", stderr);
-        fclose(fin);
-        fclose(fout);
-        free(provs);
-        return 1;
-    }
-    if (diag_end < diag_start) {
-        fputs("[ERROR] Could not find any DIAG_XX columns in header.\n", stderr);
-        fclose(fin);
-        fclose(fout);
+        close_files(fin, fout);
         free(provs);
         return 1;
     }
@@ -218,13 +117,14 @@ int main(int argc, char *argv[]) {
         char row[MAX_LINE_LEN] = {0};
         strncpy_s(row, sizeof(row), line, _TRUNCATE);
         row[sizeof(row)-1] = 0;
-        int row_ncols = split_line(row, cols, MAX_COLS);
+        int row_ncols = csv_split_line(row, cols, MAX_COLS);
         if (row_ncols < ncols) {
-            if (debug) printf("[DEBUG] Skipping malformed row %d (columns: %d)\n", total_rows, row_ncols);
+            if (debug) printf("[DEBUG] Skipping malformed row %d (columns: %d)\n",
+                total_rows, row_ncols);
             continue;
         }
         char root[MAX_PROVSPNO_LEN] = {0};
-        get_provspno_root(cols[provspno_idx], root, sizeof(root));
+        extract_provspno_root(cols[provspno_idx], root, sizeof(root));
         int diag_count = 0;
         for (int i = diag_start; i <= diag_end; ++i) {
             if (cols[i][0] != '\0') diag_count++;
@@ -244,8 +144,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (!fgets(line, sizeof(line), fin)) {
-        fclose(fin);
-        fclose(fout);
+        close_files(fin, fout);
         free(provs);
         return 1;
     }
@@ -259,22 +158,24 @@ int main(int argc, char *argv[]) {
         char row[MAX_LINE_LEN] = {0};
         strncpy_s(row, sizeof(row), line, _TRUNCATE);
         row[sizeof(row)-1] = 0;
-        int row_ncols = split_line(row, cols, MAX_COLS);
+        int row_ncols = csv_split_line(row, cols, MAX_COLS);
         if (row_ncols < ncols) {
-            if (debug) printf("[DEBUG] Skipping malformed row %d (columns: %d)\n", total_rows, row_ncols);
+            if (debug) printf("[DEBUG] Skipping malformed row %d (columns: %d)\n",
+                total_rows, row_ncols);
             skipped_rows++;
             continue;
         }
         char root[MAX_PROVSPNO_LEN] = {0};
-        get_provspno_root(cols[provspno_idx], root, sizeof(root));
+        extract_provspno_root(cols[provspno_idx], root, sizeof(root));
         int diag_count = 0;
         for (int i = diag_start; i <= diag_end; ++i) {
             if (cols[i][0] != '\0') diag_count++;
         }
         int min_count = get_min_for_root(provs, nprovs, root);
-        if (debug) printf("[DEBUG] Row %d: root=%s, diag_count=%d, min_count=%d\n", total_rows, root, diag_count, min_count);
+        if (debug) printf("[DEBUG] Row %d: root=%s, diag_count=%d, min_count=%d\n",
+            total_rows, root, diag_count, min_count);
         if (diag_count == min_count) {
-            write_row(fout, cols, ncols);
+            csv_write_row(fout, cols, ncols);
             written_rows++;
         } else {
             skipped_rows++;
@@ -289,8 +190,7 @@ int main(int argc, char *argv[]) {
         printf("[%s] [DEBUG] Rows skipped: %d\n", timestamp, skipped_rows);
         printf("[%s] [DEBUG] Program finished. Total run time: %.2f seconds\n", timestamp, elapsed);
     }
-    fclose(fin);
-    fclose(fout);
+    close_files(fin, fout);
 
     return 0;
 }

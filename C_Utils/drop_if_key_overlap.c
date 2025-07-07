@@ -1,16 +1,9 @@
 // Reads a CSV file, writes only the first row for each unique key (set of columns).
 // Usage: drop_if_key_overlap [-k keycols] input.csv [output.csv]
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-#include <ctype.h>
+#include "csv_utils.h"
 
-#define MAX_LINE_LEN 100000
-#define MAX_COLS 400
 #define MAX_KEY_COLS 100
-#define MAX_ROWS 20000000
 #define MAX_KEY_STR 4096
 #define MAX_KEY_SEEN 20000000
 
@@ -22,50 +15,6 @@ const char *default_key_cols[] = {
     "SpellHRG"
 };
 #define DEFAULT_KEY_COLS_COUNT (sizeof(default_key_cols)/sizeof(default_key_cols[0]))
-
-int split_line(char *line, char *cols[], int max_cols) {
-    int count = 0;
-    char *start = line;
-    char *p = line;
-    while (*p && count < max_cols) {
-        if (*p == ',') {
-            *p = '\0';
-            cols[count++] = start;
-            start = p + 1;
-        }
-        p++;
-    }
-    cols[count++] = start;
-    return count;
-}
-
-void write_row(FILE *f, char *cols[], int ncols) {
-    for (int i = 0; i < ncols; ++i) {
-        fprintf_s(f, "%s%s", cols[i], (i < ncols-1) ? "," : "\n");
-    }
-}
-
-void make_output_filename(const char *input, char *output, size_t outlen) {
-    // Ensure there is enough space for the new filename, including "_v2" and extension
-    size_t input_len = strlen(input);
-    size_t min_required = 4 + 1; // "_v2" + null terminator
-    if (input_len + min_required > outlen) {
-        // Not enough space, set output to empty string and return
-        if (outlen > 0) output[0] = '\0';
-        return;
-    }
-    const char *dot = strrchr(input, '.');
-    if (!dot || dot == input) {
-        snprintf(output, outlen, "%s_v2", input); // snprintf_s is not platform independent
-    } else {
-        size_t base_len = dot - input;
-        if (base_len > outlen - 5) base_len = outlen - 5;
-        strncpy_s(output, outlen, input, base_len);
-        output[base_len] = '\0';
-        strncat_s(output, outlen, "_v2", _TRUNCATE);
-        strncat_s(output, outlen, dot, _TRUNCATE);
-    }
-}
 
 void trim(char *s) {
     char *end;
@@ -176,19 +125,14 @@ int main(int argc, char *argv[]) {
     if (argc > 2 && strcmp(argv[1], "-k") == 0) {
         use_default_key = 0;
         if (argc < 4) {
-            fprintf_s(stderr, "Usage: %s [-k keycols] input.csv [output.csv]\n", argv[0]);
-            return 1;
+            print_usage_and_exit(argv[0], "[-k keycols] input.csv [output.csv]");
         }
         key_count = parse_keycols(argv[2], key_indexes, key_names, &is_index_mode);
         argi = 3;
     }
 
     if (argc - argi < 1 || argc - argi > 2) {
-        fprintf_s(stderr, "Usage: %s [-k keycols] input.csv [output.csv]\n", argv[0]);
-        if (!use_default_key && !is_index_mode) {
-            for (int i = 0; i < key_count; ++i) free(key_names[i]);
-        }
-        return 1;
+        print_usage_and_exit(argv[0], "[-k keycols] input.csv [output.csv]");
     }
     const char *infilename = argv[argi];
     if (argc - argi == 2) {
@@ -199,16 +143,7 @@ int main(int argc, char *argv[]) {
     }
 
     FILE *fin = NULL, *fout = NULL;
-    if (fopen_s(&fin, infilename, "r") != 0) {
-        fprintf_s(stderr, "Error opening input file: %s\n", infilename);
-        if (!use_default_key && !is_index_mode) {
-            for (int i = 0; i < key_count; ++i) free(key_names[i]);
-        }
-        return 1;
-    }
-    if (fopen_s(&fout, outfilename, "w") != 0) {
-        fprintf_s(stderr, "Error opening output file: %s\n", outfilename);
-        fclose(fin);
+    if (!open_input_output_files(infilename, outfilename, &fin, &fout)) {
         if (!use_default_key && !is_index_mode) {
             for (int i = 0; i < key_count; ++i) free(key_names[i]);
         }
@@ -222,7 +157,7 @@ int main(int argc, char *argv[]) {
     // Handle header
     if (!fgets(line, sizeof(line), fin)) {
         fprintf_s(stderr, "Empty input file.\n");
-        fclose(fin); fclose(fout);
+        close_files(fin, fout);
         if (!use_default_key && !is_index_mode) {
             for (int i = 0; i < key_count; ++i) free(key_names[i]);
         }
@@ -234,7 +169,7 @@ int main(int argc, char *argv[]) {
     char header[MAX_LINE_LEN];
     strncpy_s(header, sizeof(header), line, _TRUNCATE);
     header[sizeof(header)-1] = 0;
-    ncols = split_line(header, cols, MAX_COLS);
+    ncols = csv_split_line(header, cols, MAX_COLS);
 
     // Determine key column indexes
     if (use_default_key) {
@@ -242,7 +177,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < key_count; ++i) {
             int idx = find_col_index(default_key_cols[i], cols, ncols);
             if (idx < 0) {
-                fclose(fin); fclose(fout);
+                close_files(fin, fout);
                 return 1;
             }
             key_indexes[i] = idx;
@@ -251,7 +186,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < key_count; ++i) {
             int idx = find_col_index(key_names[i], cols, ncols);
             if (idx < 0) {
-                fclose(fin); fclose(fout);
+                close_files(fin, fout);
                 for (int j = 0; j < key_count; ++j) free(key_names[j]);
                 return 1;
             }
@@ -262,7 +197,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < key_count; ++i) {
             if (key_indexes[i] < 1 || key_indexes[i] > ncols) {
                 fprintf_s(stderr, "[ERROR] Key column index %d out of range (file has %d columns)\n", key_indexes[i], ncols);
-                fclose(fin); fclose(fout);
+                close_files(fin, fout);
                 return 1;
             }
             key_indexes[i] -= 1;
@@ -272,7 +207,7 @@ int main(int argc, char *argv[]) {
     KeySeen *seen = (KeySeen*)malloc(sizeof(KeySeen) * MAX_KEY_SEEN);
     if (!seen) {
         fprintf_s(stderr, "Memory allocation failed\n");
-        fclose(fin); fclose(fout);
+        close_files(fin, fout);
         return 1;
     }
     int seen_count = 0;
@@ -285,7 +220,7 @@ int main(int argc, char *argv[]) {
         char row[MAX_LINE_LEN];
         strncpy_s(row, sizeof(row), line, _TRUNCATE);
         row[sizeof(row)-1] = 0;
-        int row_ncols = split_line(row, cols, MAX_COLS);
+        int row_ncols = csv_split_line(row, cols, MAX_COLS);
         if (row_ncols < ncols) continue;
 
         char key[MAX_KEY_STR];
@@ -303,15 +238,14 @@ int main(int argc, char *argv[]) {
                 strncpy_s(seen[seen_count].key, sizeof(seen[seen_count].key), key, _TRUNCATE);
                 seen_count++;
             }
-            write_row(fout, cols, ncols);
+            csv_write_row(fout, cols, ncols);
             written_rows++;
         } else {
             skipped_rows++;
         }
     }
     free(seen);
-    fclose(fin);
-    fclose(fout);
+    close_files(fin, fout);
     printf("[INFO] Processed %d rows, wrote %d unique, skipped %d duplicates.\n", total_rows, written_rows, skipped_rows);
     return 0;
 }

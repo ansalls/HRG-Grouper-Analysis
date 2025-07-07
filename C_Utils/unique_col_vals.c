@@ -1,59 +1,11 @@
 // Outputs unique values (and optionally counts) from a specified column in a CSV file.
 // Usage: unique_col_vals [-c] input.csv [output.csv] col
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "csv_utils.h"
 #include <direct.h>
 
-#define MAX_LINE_LEN 100000
-#define MAX_COLS 400
 #define MAX_UNIQUE 100000
 #define MAX_VAL_LEN 1024
-
-int split_line(char *line, char *cols[], int max_cols) {
-    int count = 0;
-    char *start = line;
-    char *p = line;
-    while (*p && count < max_cols) {
-        if (*p == ',') {
-            *p = '\0';
-            cols[count++] = start;
-            start = p + 1;
-        }
-        p++;
-    }
-    cols[count++] = start;
-    return count;
-}
-
-void write_row(FILE *f, char *cols[], int ncols) {
-    for (int i = 0; i < ncols; ++i) {
-        fprintf_s(f, "%s%s", cols[i], (i < ncols-1) ? "," : "\n");
-    }
-}
-
-void make_output_filename(const char *input, char *output, size_t outlen) {
-    // Ensure there is enough space for the new filename, including "_v2" and extension
-    size_t input_len = strlen(input);
-    size_t min_required = 4 + 1; // "_v2" + null terminator
-    if (input_len + min_required > outlen) {
-        // Not enough space, set output to empty string and return
-        if (outlen > 0) output[0] = '\0';
-        return;
-    }
-    const char *dot = strrchr(input, '.');
-    if (!dot || dot == input) {
-        snprintf(output, outlen, "%s_v2", input); // snprintf_s is not platform independent
-    } else {
-        size_t base_len = dot - input;
-        if (base_len > outlen - 5) base_len = outlen - 5;
-        strncpy_s(output, outlen, input, base_len);
-        output[base_len] = '\0';
-        strncat_s(output, outlen, "_v2", _TRUNCATE);
-        strncat_s(output, outlen, dot, _TRUNCATE);
-    }
-}
 
 typedef struct {
     char val[MAX_VAL_LEN];
@@ -67,8 +19,7 @@ int main(int argc, char *argv[]) {
     int arg_offset = 1;
 
     if (argc < 3) {
-        fprintf_s(stderr, "Usage: %s [-c] [-v] input.csv [output.csv] col\n", argv[0]);
-        return 1;
+        print_usage_and_exit(argv[0], "[-c] [-v] input.csv [output.csv] col");
     }
 
     while (arg_offset < argc && argv[arg_offset][0] == '-' && argv[arg_offset][1] != '\0') {
@@ -81,8 +32,7 @@ int main(int argc, char *argv[]) {
                 printf("Found -v flag\n");
             } else {
                 fprintf_s(stderr, "Unknown flag: -%c\n", argv[arg_offset][i]);
-                fprintf_s(stderr, "Usage: %s [-c] [-v] input.csv [output.csv] col\n", argv[0]);
-                return 1;
+                print_usage_and_exit(argv[0], "[-c] [-v] input.csv [output.csv] col");
             }
         }
         arg_offset++;
@@ -91,8 +41,7 @@ int main(int argc, char *argv[]) {
     int positional = argc - arg_offset;
     printf("arg_offset = %d, positional = %d\n", arg_offset, positional);
     if (positional != 2 && positional != 3) {
-        fprintf_s(stderr, "Usage: %s [-c] [-v] input.csv [output.csv] col\n", argv[0]);
-        return 1;
+        print_usage_and_exit(argv[0], "[-c] [-v] input.csv [output.csv] col");
     }
     const char *infilename = argv[arg_offset];
     int col;
@@ -123,7 +72,7 @@ int main(int argc, char *argv[]) {
         outdir[dirlen] = '\0';
         if (verbose) printf("Output directory: %s\n", outdir);
 
-        if (_mkdir(outdir) != 0 && errno != EEXIST) {
+        if (_mkdir(outdir) != 0) {
             fprintf_s(stderr, "Error creating directory: %s\n", outdir);
             perror("_mkdir");
             return 1;
@@ -131,17 +80,7 @@ int main(int argc, char *argv[]) {
     }
 
     FILE *fin = NULL, *fout = NULL;
-    if (fopen_s(&fin, infilename, "r") != 0) {
-        fprintf_s(stderr, "Error opening input file: %s\n", infilename);
-        perror("fopen_s input");
-        return 1;
-    }
-    if (fopen_s(&fout, outfilename, "w") != 0) {
-        fprintf_s(stderr, "Error opening output file: %s\n", outfilename);
-        perror("fopen_s output");
-        printf("Current directory: ");
-        system("cd");
-        fclose(fin);
+    if (!open_input_output_files(infilename, outfilename, &fin, &fout)) {
         return 1;
     }
 
@@ -179,8 +118,7 @@ int main(int argc, char *argv[]) {
     // Handle header
     if (!fgets(header, MAX_LINE_LEN, fin)) {
         fprintf_s(stderr, "Empty input file.\n");
-        fclose(fin);
-        fclose(fout);
+        close_files(fin, fout);
         free(line);
         free(header);
         free(cols);
@@ -188,11 +126,10 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     char *header_cols[MAX_COLS];
-    int ncols = split_line(header, header_cols, MAX_COLS);
+    int ncols = csv_split_line(header, header_cols, MAX_COLS);
     if (col > ncols) {
         fprintf_s(stderr, "Column position out of range. File has %d columns.\n", ncols);
-        fclose(fin);
-        fclose(fout);
+        close_files(fin, fout);
         free(line);
         free(header);
         free(cols);
@@ -209,7 +146,7 @@ int main(int argc, char *argv[]) {
         char row[MAX_LINE_LEN];
         strncpy_s(row, sizeof(row), line, _TRUNCATE);
         row[sizeof(row)-1] = 0;
-        int row_ncols = split_line(row, cols, MAX_COLS);
+        int row_ncols = csv_split_line(row, cols, MAX_COLS);
         if (row_ncols < col) {
             if (verbose) printf("Skipping malformed row %d: %s\n", row_num, line);
             row_num++;
@@ -251,7 +188,6 @@ int main(int argc, char *argv[]) {
     free(cols);
     free(uniques);
 
-    fclose(fin);
-    fclose(fout);
+    close_files(fin, fout);
     return 0;
 }
