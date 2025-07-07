@@ -1,6 +1,6 @@
 # HRG-Grouper-Analysis
 
- Materials used for probing the NHS' HRG grouper software to better understand its behavior
+ Materials used to probe the NHS's HRG grouper software and better understand its behavior.
 
 ## C_Utils
 
@@ -21,6 +21,6 @@ clang -Wall -Wextra -Werror -g -O0  csv_utils.c append_diag.c -o append_diag.exe
 The project uses the following external dependencies:
 
 - 'clang' or an alternative for compiling C utilities
-- 'python' for running Python scripts
+- 'Python' for running Python scripts
 - 'PowerShell' for running PowerShell scripts
 - 'NHS Local Payment Grouper' for determining the HRGs assigned (<https://digital.nhs.uk/services/national-casemix-office/downloads-groupers-and-tools/payment-groupers>)
