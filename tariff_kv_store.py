@@ -43,16 +43,16 @@ def get_tariff_kv_store(input_file=None, fye_tag: str = DEFAULT_FYE_TAG, no_cach
 
 def load_and_filter_data(filename: str, fye_tag: str = DEFAULT_FYE_TAG) -> dict:
     '''
-    Loads an Excel sheet, filters rows based on criteria, and returns a dictionary
-    mapping a composite key to the tariff value.
+        Loads an Excel sheet, filters rows based on criteria, and returns a dictionary
+        mapping a composite key to the tariff value.
 
-    Args:
-        filename (str): Path to the Excel workbook.
-        sheet_name (str): The sheet name to load from the workbook.
+        Args:
+            filename (str): Path to the Excel workbook.
+            sheet_name (str): The sheet name to load from the workbook.
 
-    Returns:
-        dict: A dictionary with keys in the format "[Spell Type]-[Admission Type]-[HRG]"
-              and values corresponding to the tariff.
+        Returns:
+            dict: A dictionary with keys in the format "[Spell Type]-[Admission Type]-[HRG]"
+                and values corresponding to the tariff.
     '''
     # Load the Excel sheet into a DataFrame.
     sheet_name = f"{fye_tag}{TARIFF_APC_SHEET_NAME_NO_TAG}"
@@ -77,18 +77,18 @@ def load_and_filter_data(filename: str, fye_tag: str = DEFAULT_FYE_TAG) -> dict:
 
 def tariff_kv_store_format() -> str:
     '''
-    This function returns the format of the tariff key-value store
+        This function returns the format of the tariff key-value store
     '''
     return "[Spell Type]-[Admission Type]-[HRG]-[FYE Tag]: Tariff"
 
 
 def add_tariff_key(df: DataFrame) -> DataFrame:
     '''
-    Returns a dataframe with an additional column "TariffKey"
-    that holds a tariff lookup key in the format "SpellType-AdmitType-HRG-FYE Tag".
+        Returns a dataframe with an additional column "TariffKey"
+        that holds a tariff lookup key in the format "SpellType-AdmitType-HRG-FYE Tag".
 
-    SpellType is determined from the patient class (1,3,4 -> "ORD", 2 -> "DAY"),
-    and AdmitType is determined from the admit method (11,12,13 -> "ELE", else "NON").
+        SpellType is determined from the patient class (1,3,4 -> "ORD", 2 -> "DAY"),
+        and AdmitType is determined from the admit method (11,12,13 -> "ELE", else "NON").
     '''
 
     # Create the tariff lookup key column.
@@ -105,7 +105,7 @@ def add_tariff_key(df: DataFrame) -> DataFrame:
 
 def get_spell_type(classification_value: int) -> str:
     '''
-    Converts a patient classification value to its corresponding spell type.
+        Converts a patient classification value to its corresponding spell type.
     '''
     try:
         classification = PatientClassification(classification_value)
@@ -117,7 +117,7 @@ def get_spell_type(classification_value: int) -> str:
 
 def get_admit_type(admit_value: str) -> str:
     '''
-    Converts an admit method value to its corresponding admit type.
+        Converts an admit method value to its corresponding admit type.
     '''
     try:
         admit_method = AdmitMethod(admit_value)
@@ -129,8 +129,8 @@ def get_admit_type(admit_value: str) -> str:
 
 def add_tariff_value(df: DataFrame, kv_store: dict) -> DataFrame:
     '''
-    Adds a column "TariffValue" to the DataFrame based on the "TariffKey" column.
-    The values are looked up from the kv_store dictionary.
+        Adds a column "TariffValue" to the DataFrame based on the "TariffKey" column.
+        The values are looked up from the kv_store dictionary.
     '''
     df["TariffValue"] = None
 
@@ -142,9 +142,9 @@ def add_tariff_value(df: DataFrame, kv_store: dict) -> DataFrame:
 
 def add_tariff_columns(df: DataFrame) -> DataFrame:
     '''
-    Adds "TariffKey" and "TariffValue" columns to the DataFrame.
-    The "TariffKey" is generated from the patient classification and admit method,
-    and the "TariffValue" is looked up from the kv_store.
+        Adds "TariffKey" and "TariffValue" columns to the DataFrame.
+        The "TariffKey" is generated from the patient classification and admit method,
+        and the "TariffValue" is looked up from the kv_store.
     '''
     # Add the TariffKey column.
     df = add_tariff_key(df)
