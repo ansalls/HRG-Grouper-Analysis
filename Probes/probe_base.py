@@ -2,9 +2,8 @@
     This module provides functions for probing the grouper
 '''
 from os import path
-from enum import Enum
 import pandas as pd
-from Probe_classes.probe import Probe
+from Probe_classes.probe_proto import Probe
 from Probe_classes.grouper_file_type import GrouperFileType
 import Utils.constants as const
 from Utils.grouper_df_utils import write_output, apply_plugins
@@ -46,28 +45,16 @@ def add_probe_rows(probe_cls, df: pd.DataFrame) -> pd.DataFrame:
         return pd.concat([df, new_rows_df], ignore_index=True)
 
     # Handle custom probe classes with generate_new_rows (e.g. code_drop)
-    if hasattr(probe_cls, 'generate_new_rows'):
+    elif hasattr(probe_cls, 'generate_new_rows'):
         for _, row in df.iterrows():
             new_rows.extend(probe_cls.generate_new_rows(row))
     else:
         # Set up variables based on probe_cls type
-        # Enum type - e.g. admission_method
-        if issubclass(probe_cls, Enum):
-            probe_values = [member.value for member in probe_cls]
-            value_names = [member.name for member in probe_cls]
-            probe_name = probe_cls.__name__
-            if hasattr(probe_cls, "column_name"):
-                column_name_attr = getattr(probe_cls, "column_name", None)
-                if callable(column_name_attr):
-                    column_name = column_name_attr()
-
-        # Probe class type - e.g. start_age
-        elif issubclass(probe_cls, Probe):
+        if issubclass(probe_cls, Probe):
             column_name = probe_cls.column_name()
             probe_values = probe_cls.probe_values()
-            value_names = [str(value) for value in probe_values]
+            value_names = probe_cls.probe_value_names()
             probe_name = probe_cls.__name__
-
         else:
             raise TypeError("probe_cls must be an Enum, a Probe subclass, \
                             or have a generate_new_rows method")
@@ -159,9 +146,7 @@ def get_probe_file_name(probe_class, gf_type: GrouperFileType) -> str:
     '''
         Get the output file name for the probe based on the enum class name.
     '''
-    if isinstance(probe_class, Enum):
-        file_name = f"{probe_class.__name__.lower()}{const.DEFAULT_FILE_EXTENSION}"
-    elif isinstance(probe_class, Probe):
+    if issubclass(probe_class, Probe):
         file_name = f"{probe_class.__name__.lower()}{const.DEFAULT_FILE_EXTENSION}"
     else:
         file_name = f"{probe_class}{const.DEFAULT_FILE_EXTENSION}"

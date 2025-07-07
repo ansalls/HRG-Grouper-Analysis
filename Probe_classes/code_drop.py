@@ -5,7 +5,6 @@
 import itertools
 import pandas as pd
 from tqdm import tqdm
-
 from Utils.constants import DEFAULT_DELIMITER, DIAGNOSIS_PREFIX, SPELL_ID
 
 

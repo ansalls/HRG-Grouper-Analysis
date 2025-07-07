@@ -1,6 +1,5 @@
 '''
-    This module provides an enumeration of the values
-    for treatment function codes.
+    This module provides an enumeration of the various files created by the grouper.
 '''
 from enum import Enum
 from Utils.constants import (

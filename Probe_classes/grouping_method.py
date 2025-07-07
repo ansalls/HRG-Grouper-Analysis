@@ -3,9 +3,10 @@
 '''
 from enum import StrEnum
 from Utils.constants import GROUING_METHOD_FLAG
+from .probe_proto import EnumProbeMixin
 
 
-class GroupingMethod(StrEnum):
+class GroupingMethod(EnumProbeMixin, StrEnum):
     '''
         https://digital.nhs.uk/services/secondary-uses-service-sus/payment-by-results-guidance/sus-pbr-reference-manual/hrg-grouping
     '''

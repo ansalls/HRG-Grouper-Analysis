@@ -2,10 +2,11 @@
     Enum for Patient Classification codes.
 '''
 from enum import Enum
-from Utils.constants import PATIENT_CLASSIFICATION  # Assuming CLASSPAT is defined in constants.py
+from Utils.constants import PATIENT_CLASSIFICATION
+from .probe_proto import EnumProbeMixin
 
 
-class PatientClassification(Enum):
+class PatientClassification(EnumProbeMixin, Enum):
     '''
         https://www.datadictionary.nhs.uk/data_elements/patient_classification_code.html
     '''

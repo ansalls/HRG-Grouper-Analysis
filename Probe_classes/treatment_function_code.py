@@ -4,9 +4,10 @@
 '''
 from enum import Enum
 from Utils.constants import TREATMENT_SPECIALTY
+from .probe_proto import EnumProbeMixin
 
 
-class TreatmentFunctionCode(Enum):
+class TreatmentFunctionCode(EnumProbeMixin, Enum):
     '''
         https://www.datadictionary.nhs.uk/data_elements/activity_treatment_function_code.html
         Retired codes are not included

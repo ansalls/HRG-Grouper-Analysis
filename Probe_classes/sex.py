@@ -3,9 +3,10 @@
 '''
 from enum import StrEnum
 from Utils.constants import BIOLOGICAL_SEX
+from .probe_proto import EnumProbeMixin
 
 
-class Sex(StrEnum):
+class Sex(EnumProbeMixin, StrEnum):
     '''
         An enumeration of the possible values for sex
 

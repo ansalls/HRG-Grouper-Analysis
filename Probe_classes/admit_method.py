@@ -3,9 +3,10 @@
 '''
 from enum import StrEnum
 from Utils.constants import ADMISSION_METHOD
+from .probe_proto import EnumProbeMixin
 
 
-class AdmitMethod(StrEnum):
+class AdmitMethod(EnumProbeMixin, StrEnum):
     '''
         https://www.datadictionary.nhs.uk/data_elements/admission_method_code__hospital_provider_spell_.html
     '''

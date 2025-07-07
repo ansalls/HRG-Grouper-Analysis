@@ -2,7 +2,7 @@
     Class for episode duration probe.
 '''
 from Utils.constants import MAX_EPISODE_DURATION, EPISODE_DURATION
-from Probe_classes.probe import Probe
+from Probe_classes.probe_proto import Probe
 
 
 class EpisodeDuration(Probe):
@@ -33,3 +33,10 @@ class EpisodeDuration(Probe):
                 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000,
                 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000,
                 MAX_EPISODE_DURATION]
+
+    @classmethod
+    def probe_value_names(cls) -> list[str]:
+        '''
+            Returns a list of string representations of the probe values.
+        '''
+        return [str(value) for value in cls.probe_values()]

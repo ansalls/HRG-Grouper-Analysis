@@ -2,7 +2,7 @@
     Class for start age.
 '''
 from Utils.constants import MAX_START_AGE, START_AGE
-from Probe_classes.probe import Probe
+from .probe_proto import Probe
 
 
 class StartAge(Probe):
@@ -11,6 +11,9 @@ class StartAge(Probe):
     '''
     @classmethod
     def column_name(cls) -> str:
+        '''
+            Returns the name of the column that contains the start age.
+        '''
         return START_AGE
 
     @classmethod
@@ -31,3 +34,10 @@ class StartAge(Probe):
                 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119,
                 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130,
                 MAX_START_AGE]
+
+    @classmethod
+    def probe_value_names(cls) -> list[str]:
+        '''
+            Returns a list of string representations of the probe values.
+        '''
+        return [str(value) for value in cls.probe_values()]

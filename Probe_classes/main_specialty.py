@@ -3,9 +3,10 @@
 '''
 from enum import Enum
 from Utils.constants import CLINICIAN_MAIN_SPECIALTY
+from .probe_proto import EnumProbeMixin
 
 
-class MainSpecialty(Enum):
+class MainSpecialty(EnumProbeMixin, Enum):
     '''
         https://datadictionary.nhs.uk/data_elements/care_professional_main_specialty_code.html
         Retired codes are not included

@@ -3,9 +3,10 @@
 '''
 from enum import Enum
 from Utils.constants import ADMISSION_SOURCE
+from .probe_proto import EnumProbeMixin
 
 
-class AdmitSource(Enum):
+class AdmitSource(EnumProbeMixin, Enum):
     '''
         https://www.datadictionary.nhs.uk/data_elements/source_of_admission_code__hospital_provider_spell_.html
     '''

@@ -3,9 +3,10 @@
 '''
 from enum import Enum
 from Utils.constants import DISCHARGE_DESTINATION
+from .probe_proto import EnumProbeMixin
 
 
-class DischargeDestination(Enum):
+class DischargeDestination(EnumProbeMixin, Enum):
     '''
         https://www.datadictionary.nhs.uk/data_elements/destination_of_discharge__hospital_provider_spell_.html
     '''
