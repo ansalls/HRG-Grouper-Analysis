@@ -4,3 +4,9 @@ __pycache__
 .env
 test.py
 *.exe
+C_Utils/csv_utils.o
+.vscode/
+*.pyc
+.gitignore
+.notes
+data/APC_Sample_Test_Data.csv
