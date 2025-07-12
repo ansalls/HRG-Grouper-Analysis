@@ -9,4 +9,9 @@ C_Utils/csv_utils.o
 *.pyc
 .gitignore
 .notes
-data/APC_Sample_Test_Data.csv
+data/cache/*
+data/cc_lists/*
+data/hrg_input/*
+data/hrg_output/*
+data/processed/*
+data/raw/*
