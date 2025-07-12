@@ -69,7 +69,7 @@ class ColumnExtenderPlugin(BasePlugin):
 
         elif isinstance(last_column_position, int):
             # Use the first occurrence
-            last_column_position += 1
+            pass
         else:
             raise TypeError(
                 f"Unexpected type for last_column_position: {type(last_column_position)}")

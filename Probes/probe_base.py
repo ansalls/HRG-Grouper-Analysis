@@ -39,15 +39,18 @@ def add_probe_rows(probe_cls, df: pd.DataFrame) -> pd.DataFrame:
     column_name = None  # Default to None in case we can't find it in the probe class
 
     # Prefer vectorized method if available
-    if hasattr(probe_cls, 'generate_new_rows_vectorized'):
+    if hasattr(probe_cls, 'generate_new_rows_vectorized_v2'):
         # Should return a DataFrame of new rows
-        new_rows_df = probe_cls.generate_new_rows_vectorized(df)
+        new_rows_df = probe_cls.generate_new_rows_vectorized_v2(df)
         return pd.concat([df, new_rows_df], ignore_index=True)
 
     # Handle custom probe classes with generate_new_rows (e.g. code_drop)
     elif hasattr(probe_cls, 'generate_new_rows'):
-        for _, row in df.iterrows():
-            new_rows.extend(probe_cls.generate_new_rows(row))
+        raise NotImplementedError(
+            "Class must implement 'generate_new_rows_vectorized_v2' method to be used here."
+        )
+        #for _, row in df.iterrows():
+        #    new_rows.extend(probe_cls.generate_new_rows(row))
     else:
         # Set up variables based on probe_cls type
         if issubclass(probe_cls, Probe):
@@ -78,7 +81,8 @@ def add_probe_rows(probe_cls, df: pd.DataFrame) -> pd.DataFrame:
 def create_base_df(no_cache: bool = False,
                    input_rdf: str = path.join(const.DATA_FILE_FOLDER, const.BASE_RDF_FILE),
                    data_file: str = const.SAMPLE_DATA_FILE,
-                   output_rdf: str = "") -> tuple[str, pd.DataFrame]:
+                   output_rdf: str = ""
+                   ) -> tuple[str, pd.DataFrame]:
     '''
         Create a base DataFrame for probing purposes.
     '''
@@ -90,8 +94,7 @@ def create_base_df(no_cache: bool = False,
 
     data_file_path = data_file if const.RAW_FILE_FOLDER in data_file else path.join(
         const.RAW_FILE_FOLDER, data_file)
-    output_file_path = output_rdf if const.CACHE_FILE_FOLDER in output_rdf else path.join(
-        const.CACHE_FILE_FOLDER, const.PROBE_BASE_FILE)
+    output_file_path = path.join(const.CACHE_FILE_FOLDER, const.PROBE_BASE_FILE)
 
     output_delimiter, output_column_mappings = parse_definition_file(output_rdf)
 
@@ -149,8 +152,8 @@ def get_probe_file_name(probe_class, gf_type: GrouperFileType) -> str:
     '''
         Get the output file name for the probe based on the enum class name.
     '''
-    if issubclass(probe_class, Probe):
-        file_name = f"{probe_class.__name__.lower()}{const.DEFAULT_FILE_EXTENSION}"
+    if isinstance(probe_class, Probe):
+        file_name = f"{type(probe_class).__name__.lower()}{const.DEFAULT_FILE_EXTENSION}"
     else:
         file_name = f"{probe_class}{const.DEFAULT_FILE_EXTENSION}"
     if gf_type == GrouperFileType.INPUT:
@@ -167,7 +170,6 @@ def run_multiple_probes(probe_classes: list,
                         no_cache=False,
                         data_file: str = "",
                         rdf_file: str = "",
-                        output_rdf: str = ""
                         ) -> None:
     '''
         Run multiple probes simultaneously and save the comparison results to a file.
@@ -179,7 +181,7 @@ def run_multiple_probes(probe_classes: list,
     '''
     # Create the base DataFrame
     delimiter, df_base = create_base_df(
-        no_cache, data_file=data_file, input_rdf=rdf_file, output_rdf=output_rdf)
+        no_cache, data_file=data_file, input_rdf=rdf_file)
 
     # Generate all probe rows
     probe_rows_list = []

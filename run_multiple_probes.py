@@ -54,7 +54,7 @@ def run_all_probes():
 
     # Run all probes together
     run_multiple_probes(probe_classes, no_cache=no_cache, data_file=input_file,
-                        rdf_file=rdf_file, output_rdf=rdf_file)
+                        rdf_file=rdf_file)
 
 
 if __name__ == '__main__':
