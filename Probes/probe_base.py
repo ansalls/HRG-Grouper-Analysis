@@ -88,8 +88,11 @@ def create_base_df(no_cache: bool = False,
     if not output_rdf:
         output_rdf = path.join(const.DATA_FILE_FOLDER, const.DEFAULT_RDF_FILE)
 
-    data_file_path = path.join(const.RAW_FILE_FOLDER, data_file)
-    output_file_path = path.join(const.CACHE_FILE_FOLDER, const.PROBE_BASE_FILE)
+    data_file_path = data_file if const.RAW_FILE_FOLDER in data_file else path.join(
+        const.RAW_FILE_FOLDER, data_file)
+    output_file_path = output_rdf if const.CACHE_FILE_FOLDER in output_rdf else path.join(
+        const.CACHE_FILE_FOLDER, const.PROBE_BASE_FILE)
+
     output_delimiter, output_column_mappings = parse_definition_file(output_rdf)
 
     if not no_cache and path.exists(output_file_path):
