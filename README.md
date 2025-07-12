@@ -1,6 +1,8 @@
 # HRG-Grouper-Analysis
 
- Materials used to probe the NHS's HRG grouper software and better understand its behavior.
+Note, this is out of date. See Test Data Run Book.ipynb for the most up-to-date setup instructions. 
+
+Materials used to probe the NHS's HRG grouper software and better understand its behavior.
 
 ## C_Utils
 
