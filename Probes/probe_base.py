@@ -29,11 +29,6 @@ def add_probe_rows(probe_cls, df: pd.DataFrame) -> pd.DataFrame:
         probe_cls: The probe class (Enum, Probe subclass, or custom class with generate_new_rows).
         df : pd.DataFrame
             The original DataFrame to which new rows will be appended.
-
-        Returns:
-        --------
-        pd.DataFrame
-            A new DataFrame containing both the original and the additional rows.
     '''
     new_rows = []
     column_name = None  # Default to None in case we can't find it in the probe class
@@ -43,14 +38,6 @@ def add_probe_rows(probe_cls, df: pd.DataFrame) -> pd.DataFrame:
         # Should return a DataFrame of new rows
         new_rows_df = probe_cls.generate_new_rows_vectorized_v2(df)
         return pd.concat([df, new_rows_df], ignore_index=True)
-
-    # Handle custom probe classes with generate_new_rows (e.g. code_drop)
-    elif hasattr(probe_cls, 'generate_new_rows'):
-        raise NotImplementedError(
-            "Class must implement 'generate_new_rows_vectorized_v2' method to be used here."
-        )
-        #for _, row in df.iterrows():
-        #    new_rows.extend(probe_cls.generate_new_rows(row))
     else:
         # Set up variables based on probe_cls type
         if issubclass(probe_cls, Probe):
@@ -173,11 +160,6 @@ def run_multiple_probes(probe_classes: list,
                         ) -> None:
     '''
         Run multiple probes simultaneously and save the comparison results to a file.
-
-        Parameters:
-        -----------
-        probe_classes : List of probe classes to run.
-        no_cache : Bypass caching and recompute the base DataFrame and grouper output.
     '''
     # Create the base DataFrame
     delimiter, df_base = create_base_df(
@@ -215,10 +197,8 @@ def run_multiple_probes(probe_classes: list,
     column_mappings = fce_file_additional_cols(column_mappings)
     df_grouper_output = read_data(grouper_processed_file, column_mappings, delimiter)
 
-    # Perform comparison and collect results
     comparison_df = compare_multiple_probes(df_grouper_output)
 
-    # Save comparison results to a file
     comparison_file = path.join(
         const.PROCESSED_FILE_FOLDER,
         f"multiple_probes_results{const.DEFAULT_FILE_EXTENSION}"
@@ -243,13 +223,6 @@ def load_probe_data(probe_class) -> pd.DataFrame:
 def compare_multiple_probes(df: pd.DataFrame) -> pd.DataFrame:
     '''
         Compare probe rows to their corresponding source rows and collect the results.
-
-        Parameters:
-        -----------
-        d_output : pd.DataFrame
-            The DataFrame containing the grouper output with source and probe rows.
-        Returns: pd.DataFrame
-        --------
     '''
     source_results = {}
 
@@ -285,7 +258,6 @@ def compare_multiple_probes(df: pd.DataFrame) -> pd.DataFrame:
                 df.at[idx, "PermutedSpellHRG"] = permuted_hrg
                 df.at[idx, "Match"] = match
             except ValueError:
-                # Skip rows with invalid PROVSPNO, leaving them with NaN values
                 continue
 
     return df
@@ -309,12 +281,11 @@ def compare_permuted_lines_to_source(df: pd.DataFrame):
             child_results.update({(child_provspno, row[const.SPELL_HRG]): count})
             child_results.update({(child_provspno, enum_class, enum_member): row[const.SPELL_HRG]})
 
-    # Let's count the mismatches and display the details.
     mismatch_count = 0
 
     # Iterate over each key, value pair in child_results.
     for key, child_hrg in child_results.items():
-        # We're interested only in keys with 3 pieces for now
+        # We're interested only in keys with 3 pieces
         if isinstance(key, tuple) and len(key) == 3:
             child_provspno, enum_class, enum_member = key
             source_hrg = source_results.get(child_provspno)

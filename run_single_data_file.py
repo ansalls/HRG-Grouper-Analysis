@@ -31,16 +31,13 @@ if __name__ == '__main__':
         FILE_EXTENSION = ".csv"
         INPUT = f"./data/raw/CC_Probes/{FILE_NAME}{FILE_EXTENSION}"
 
-    # Load grouper output
     definition_file_path = path.join(DATA_FILE_FOLDER, RDF)
 
     # run grouper
     grouper_output = run_grouper(input_file=INPUT, definitions_file=definition_file_path)
-    grouper_output_fce = get_grouper_output_file_by_type(grouper_output, GrouperFileType.FCE)
-    delimiter, column_mappings = parse_definition_file(definition_file_path)
 
     # Load grouper output
-    definition_file_path = path.join(DATA_FILE_FOLDER, RDF)
+    grouper_output_fce = get_grouper_output_file_by_type(grouper_output, GrouperFileType.FCE)
     delimiter, column_mappings = parse_definition_file(definition_file_path)
     column_mappings = fce_file_additional_cols(column_mappings)
     df_grouper_output = read_data(grouper_output_fce, column_mappings, delimiter)

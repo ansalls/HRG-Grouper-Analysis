@@ -66,7 +66,7 @@ class CombinationRowPlugin(BasePlugin):
             spell_df = df[df[SPELL_ID] == spell]
 
             # Check if all rows in spell_df share identical values for the columns in check_cols
-            consistent = self._core_values_identical(spell_df, check_columns)
+            consistent = self.core_values_identical(spell_df, check_columns)
 
             # Add the original rows to new_rows in their current order
             # We'll do it one by one, so we know where the last row is
@@ -87,8 +87,8 @@ class CombinationRowPlugin(BasePlugin):
                     spell_df[EPISODE_DURATION], errors='coerce').sum())
 
                 # For DIAG_* and OPER_* columns, gather distinct codes and place them in the new row
-                combo_row = self._deduplicate_and_fill(spell_df, combo_row, diag_columns)
-                combo_row = self._deduplicate_and_fill(spell_df, combo_row, oper_columns)
+                combo_row = self.deduplicate_and_fill(spell_df, combo_row, diag_columns)
+                combo_row = self.deduplicate_and_fill(spell_df, combo_row, oper_columns)
 
                 # Insert the new row (dict) right after the last row
                 processed_rows.append(combo_row)
@@ -98,7 +98,7 @@ class CombinationRowPlugin(BasePlugin):
 
         return result_df
 
-    def _core_values_identical(self, spell_df: pd.DataFrame, columns: list) -> bool:
+    def core_values_identical(self, spell_df: pd.DataFrame, columns: list) -> bool:
         '''
             Returns True if for all columns, the spell's rows have the same value.
         '''
@@ -113,7 +113,7 @@ class CombinationRowPlugin(BasePlugin):
 
         return True
 
-    def _deduplicate_and_fill(self, spell_df: pd.DataFrame, combo_row: dict, columns: list) -> dict:
+    def deduplicate_and_fill(self, spell_df: pd.DataFrame, combo_row: dict, columns: list) -> dict:
         '''
             Gathers distinct non-null values from all rows in "spell_df" for each column.
             Deduplicates them and add them to combo_row.

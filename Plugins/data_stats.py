@@ -174,13 +174,13 @@ class DataStatsPlugin(BasePlugin):
                 single_episode_count += 1
             else:
                 # Check if consistent
-                if self._all_values_identical(spell_df, self.check_columns):
+                if self.all_values_identical(spell_df, self.check_columns):
                     qualifies_count += 1
                 else:
                     # It's inconsistent
                     inconsistent_count += 1
                     # Figure out which columns are inconsistent
-                    inc_columns = self._get_inconsistent_columns(spell_df, self.check_columns)
+                    inc_columns = self.get_inconsistent_columns(spell_df, self.check_columns)
                     for column in inc_columns:
                         inconsistent_per_column[column] += 1
 
@@ -196,10 +196,10 @@ class DataStatsPlugin(BasePlugin):
     # ----------------------------------------------------------------------
     # Helpers
     # ----------------------------------------------------------------------
-    def _all_values_identical(self, df_subset: pd.DataFrame, columns: List[str]) -> bool:
+    def all_values_identical(self, df_subset: pd.DataFrame, columns: List[str]) -> bool:
         '''
-        Returns True if for all columns in cols, the subset's rows
-        have at most 1 distinct non-null value.
+            Returns True if for all columns in cols, the subset's rows
+            have at most 1 distinct non-null value.
         '''
         for column in columns:
             if column not in df_subset.columns:
@@ -210,9 +210,9 @@ class DataStatsPlugin(BasePlugin):
                 return False
         return True
 
-    def _get_inconsistent_columns(self, df_subset: pd.DataFrame, columns: List[str]) -> List[str]:
+    def get_inconsistent_columns(self, df_subset: pd.DataFrame, columns: List[str]) -> List[str]:
         '''
-        Return a list of columns that have more than 1 distinct non-null value.
+            Return a list of columns that have more than 1 distinct non-null value.
         '''
         inconsistent_columns = []
         for column in columns:

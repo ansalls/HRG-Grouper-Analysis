@@ -19,7 +19,7 @@ from Utils.grouper_df_utils import apply_plugins, write_output
 from Utils.time_to_run import ttr
 from Utils.constants import (MAX_DIAG_COLS, MAX_OPER_COLS,
                              DIAGNOSIS_PREFIX, PROCEDURE_PREFIX,
-                             DEFAULT_RDF_FILE)
+                             DEFAULT_RDF_FILE, DATA_FILE_FOLDER)
 
 
 def main():
@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
 
 def process_zl_data_file(data_file_path: str,
-                         definition_file_path='.\\data\\' + DEFAULT_RDF_FILE
+                         definition_file_path=DATA_FILE_FOLDER + '/' + DEFAULT_RDF_FILE
                          ) -> str:
     '''
         This function runs the plugins on the data file and writes the output to a new CSV file.

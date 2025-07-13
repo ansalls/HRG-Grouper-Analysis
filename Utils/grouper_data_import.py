@@ -9,7 +9,8 @@ from Probe_classes.grouper_file_type import GrouperFileType
 from Utils.constants import (
     DEFAULT_FILE_EXTENSION, DEFAULT_RDF_FILE,
     DIAGNOSIS_PREFIX, PROCEDURE_PREFIX,
-    START_AGE, EPISODE_SEQUENCE_NUMBER
+    START_AGE, EPISODE_SEQUENCE_NUMBER,
+    DATA_FILE_FOLDER
 )
 from Utils.file_utils import file_extension_replace
 from Utils.grouper_file_columns import parse_definition_file
@@ -97,7 +98,7 @@ def load_grouper_input_file(rdf_file: str, data_file: str) -> pd.DataFrame:
     '''
     delimiter, column_definitions = parse_definition_file(rdf_file)
     df = read_data(data_file, column_definitions, delimiter)
-    # drop_unnecessary_columns(df)
+
     return df
 
 
@@ -122,7 +123,7 @@ def get_grouper_output_file_by_type(output_file_base: str, gf_type: GrouperFileT
 
 def import_zl_data(input_file: str,
                    input_delim: str = ',',
-                   def_file='.\\data\\' + DEFAULT_RDF_FILE) -> tuple[str, pd.DataFrame]:
+                   def_file=DATA_FILE_FOLDER + '/' + DEFAULT_RDF_FILE) -> tuple[str, pd.DataFrame]:
     '''
         Returns a dataframe from the input zl data file that matches the
         definition file provided.
@@ -159,8 +160,6 @@ def import_zl_data(input_file: str,
     for column in display_names:
         if column not in df.columns:
             raise ValueError(f"Missing column: {column} in input file.")
-            # Alternatively, perhaps just add these and fill them with NaN
-            # df[column] = np.nan
 
     # Convert columns to the order specified in the definition file
     df = df.reindex(columns=display_names)
@@ -189,17 +188,17 @@ def has_match(definition_column: str, input_column: str) -> bool:
         return True
 
     # Accept both "DIAG_XX" and "DIAGXX"
-    elif definition_column.startswith(DIAGNOSIS_PREFIX):
+    if definition_column.startswith(DIAGNOSIS_PREFIX):
         if norm_input.replace("_", "") == definition_column.replace("_", ""):
             return True
 
     # Accept both "OPER_XX" and "OPERXX"
-    elif definition_column.startswith(PROCEDURE_PREFIX):
+    if definition_column.startswith(PROCEDURE_PREFIX):
         if norm_input.replace("_", "") == definition_column.replace("_", ""):
             return True
 
     # Special case - map "HAR AGE" to "STARTAGE"
-    elif definition_column == START_AGE:
+    if definition_column == START_AGE:
         if norm_input == "HAR AGE":
             return True
 
