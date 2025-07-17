@@ -4,6 +4,7 @@
 '''
 import itertools
 import pandas as pd
+import numpy as np
 from tqdm import tqdm
 from Utils.constants import DEFAULT_DELIMITER, DIAGNOSIS_PREFIX, SPELL_ID
 
@@ -178,6 +179,82 @@ class CodeDrop:
                     # Ensure column order matches original
                     temp_df = temp_df[df.columns]
                     all_combinations.append(temp_df)
+
+        if all_combinations:
+            return pd.concat(all_combinations, ignore_index=True)
+
+        return pd.DataFrame(columns=df.columns)
+
+    @staticmethod
+    def generate_new_rows_vectorized_v2(df: pd.DataFrame) -> pd.DataFrame:
+        '''
+            Fully vectorized approach using bitmasking to generate all combinations of diagnosis
+            codes for all rows.
+
+            Optimized by avoiding unnecessary DataFrame copies and where operations, directly
+            referencing column arrays.
+
+            Args:
+                df (pd.DataFrame): The original DataFrame.
+
+            Returns:
+                pd.DataFrame: DataFrame with all code drop combinations.
+        '''
+        diag_cols = [col for col in df.columns if col.startswith(DIAGNOSIS_PREFIX)]
+
+        # Remove DIAG_01 from diag_df, keep it for later
+        diag_01_col = diag_cols[0]
+        other_diag_cols = diag_cols[1:]
+
+        # Only operate on secondary diagnosis columns, keep other columns for later
+        diag_df = df[other_diag_cols].copy()
+        other_cols = [col for col in df.columns if col not in diag_cols]
+
+        # Count non-null diagnosis codes per row (excluding DIAG_01)
+        row_ns = diag_df.notna().sum(axis=1)
+        max_n = row_ns.max()
+        if max_n == 0:
+            return pd.DataFrame(columns=df.columns)
+
+        all_combinations = []
+        # No need for bitmask cache, directly loop over bitmasks in the inner loop
+
+        for n in tqdm(range(1, max_n + 1), desc="n (non-null secondary diagnoses)", position=0):
+            group_mask = row_ns == n
+            group = diag_df[group_mask]
+            if group.empty:
+                continue
+            group_index = df.index[group_mask]
+            m = len(group)
+            na_array = np.full(m, pd.NA, dtype=object)
+            spell_base = df.loc[group_index, SPELL_ID].astype(str)
+            # Wrap the inner combinations with tqdm for progress
+            for bitmask in range(1, 1 << n):
+                k = bin(bitmask).count('1')
+                new_data = {}
+                # Directly assign existing column values or na_array for diag cols[:n]
+                for i in range(n):
+                    col = other_diag_cols[i]
+                    if (bitmask & (1 << i)) != 0:
+                        new_data[col] = group[col].values
+                    else:
+                        new_data[col] = na_array
+                # Set remaining diag cols[n:] to na_array
+                for col in other_diag_cols[n:]:
+                    new_data[col] = na_array
+                # Add DIAG_01
+                new_data[diag_01_col] = df.loc[group_index, diag_01_col].values
+                # Add other columns
+                for col in other_cols:
+                    new_data[col] = df.loc[group_index, col].values
+                # Update SPELL_ID with unique combination descriptor
+                new_data[SPELL_ID] = spell_base + \
+                    f"{DEFAULT_DELIMITER}Combinations{DEFAULT_DELIMITER}{k}"
+                # Build DataFrame for this combination
+                temp_df = pd.DataFrame(new_data)
+                # Ensure column order matches original
+                temp_df = temp_df[df.columns]
+                all_combinations.append(temp_df)
 
         if all_combinations:
             return pd.concat(all_combinations, ignore_index=True)
