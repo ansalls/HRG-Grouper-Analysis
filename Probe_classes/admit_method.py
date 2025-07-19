@@ -49,15 +49,15 @@ class AdmitMethod(EnumProbeMixin, StrEnum):
     @classmethod
     def column_name(cls) -> str:
         '''
-        Returns the name of the column that contains the admit method code.
+            Returns the name of the column that contains the admit method code.
         '''
         return ADMISSION_METHOD
 
     @classmethod
     def admit_type(cls, method: "AdmitMethod") -> str:
         '''
-        Returns "ELE" if the admission source is elective (codes 11, 12, 13),
-        otherwise returns "NON" for non-elective.
+            Returns "ELE" if the admission source is elective (codes 11, 12, 13),
+            otherwise returns "NON" for non-elective.
         '''
         if method in (cls.ELECTIVE_WAITING_LIST,
                       cls.ELECTIVE_BOOKED,

@@ -31,6 +31,6 @@ class AdmitSource(EnumProbeMixin, Enum):
     @classmethod
     def column_name(cls) -> str:
         '''
-        Returns the name of the column that contains the code.
+            Returns the name of the column that contains the code.
         '''
         return ADMISSION_SOURCE
