@@ -12,7 +12,7 @@ from Plugins.append_x import AppendXPlugin
 from Plugins.column_extender import ColumnExtenderPlugin
 from Plugins.combination_row import CombinationRowPlugin
 from Plugins.only_single_episode_spells import OnlySingleEpisodeSpellsPlugin
-from Plugins.data_stats import DataStatsPlugin
+# from Plugins.data_stats import DataStatsPlugin
 from Utils.file_utils import get_default_output_file
 from Utils.grouper_data_import import import_zl_data
 from Utils.grouper_df_utils import apply_plugins, write_output
@@ -69,7 +69,7 @@ def process_zl_data_file(data_file_path: str,
         ColumnExtenderPlugin(prefix=PROCEDURE_PREFIX, maximum=MAX_OPER_COLS),
         CombinationRowPlugin(replace_rows=True),
         OnlySingleEpisodeSpellsPlugin(),
-        DataStatsPlugin(),
+        # DataStatsPlugin(),
     ]
 
     # Apply the plugins in sequence

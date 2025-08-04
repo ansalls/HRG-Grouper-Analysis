@@ -16,11 +16,11 @@ from datetime import datetime
 import logging
 import pandas as pd
 from Utils.constants import (
-    DATA_FILE_FOLDER, RAW_FILE_FOLDER, PROCESSED_FILE_FOLDER,
-    HRG_OUTPUT_FILE_FOLDER,
+    DATA_FILE_FOLDER, PROCESSED_FILE_FOLDER,
+    HRG_OUTPUT_FILE_FOLDER, HRG_COLUMN_NAME,
     DEFAULT_RDF_FILE, PERSON_TO_SPELLS_FILE,
-    SPELL_ID, PERSON_ID, HRG_COLUMN_NAME,
-    DIAGNOSIS_PREFIX, PROCEDURE_PREFIX
+    DIAGNOSIS_PREFIX, PROCEDURE_PREFIX,
+    MAX_OPER_COLS, MAX_DIAG_COLS
 )
 from Utils.preprocess_raw_data_file import process_zl_data_file
 from Utils.run_grouper import run_grouper
@@ -41,6 +41,10 @@ from Plugins.procodet_null_filler import ProcodetNullFillerPlugin
 from Plugins.period_strip import PeriodStripPlugin
 from Plugins.column_extender import ColumnExtenderPlugin
 from Plugins.combination_row import CombinationRowPlugin
+from Plugins.only_single_episode_spells import OnlySingleEpisodeSpellsPlugin
+from Plugins.append_x import AppendXPlugin
+from Plugins.only_inpatient_baseclass import OnlyInpatientPlugin
+from Plugins.nc_strip import NcStripPlugin
 
 from tariff_kv_store import add_tariff_columns
 
@@ -66,10 +70,9 @@ class PipelineConfig:
         raw_data_file: str,
         definitions_file: Optional[str] = None,
         output_prefix: Optional[str] = None,
-        verify_gaps: bool = False,
-        include_tariff: bool = True,
-        max_diag_cols: int = 99,
-        max_oper_cols: int = 99
+        verify_gaps: bool = True,
+        max_diag_cols: int = MAX_DIAG_COLS,
+        max_oper_cols: int = MAX_OPER_COLS
     ):
         timestamp = datetime.now().isoformat()
 
@@ -77,7 +80,6 @@ class PipelineConfig:
         self.definitions_file = definitions_file or os.path.join(DATA_FILE_FOLDER, DEFAULT_RDF_FILE)
         self.output_prefix = output_prefix or f"pipeline_output_{timestamp}"
         self.verify_gaps = verify_gaps
-        self.include_tariff = include_tariff
         self.max_diag_cols = max_diag_cols
         self.max_oper_cols = max_oper_cols
 
@@ -205,11 +207,15 @@ class EndToEndPipeline:
             Get list of transformation plugins to apply
         '''
         return [
+            OnlyInpatientPlugin(),
             ProcodetNullFillerPlugin(),
             PeriodStripPlugin(),
+            NcStripPlugin(),
+            AppendXPlugin(),
             ColumnExtenderPlugin(prefix=DIAGNOSIS_PREFIX, maximum=self.config.max_diag_cols),
             ColumnExtenderPlugin(prefix=PROCEDURE_PREFIX, maximum=self.config.max_oper_cols),
-            CombinationRowPlugin(),
+            CombinationRowPlugin(replace_rows=True),
+            OnlySingleEpisodeSpellsPlugin(),
         ]
 
     def run_grouper_analysis(self) -> str:
@@ -254,8 +260,7 @@ class EndToEndPipeline:
 
         self.grouper_output_df = read_data(fce_output_file, column_mappings, delimiter)
 
-        if self.config.include_tariff:
-            self.grouper_output_df = add_tariff_columns(self.grouper_output_df)
+        self.grouper_output_df = add_tariff_columns(self.grouper_output_df)
 
         logger.info("Loaded %d records from grouper output", len(self.grouper_output_df))
         return self.grouper_output_df
@@ -269,35 +274,18 @@ class EndToEndPipeline:
         '''
         logger.info("Step 4: Preparing person-to-spells mapping")
 
-        # Try to load existing mapping file
         person_mapping_file = os.path.join(DATA_FILE_FOLDER, PERSON_TO_SPELLS_FILE)
 
         if os.path.exists(person_mapping_file):
             logger.info("Loading existing person-to-spells mapping")
             self.person_to_spells_df = get_person_to_spells_map()
         else:
-            logger.info("Creating person-to-spells mapping from grouper output")
-            self.person_to_spells_df = self.create_mock_person_mapping()
+            raise FileNotFoundError(
+                f"Person-to-spells mapping file not found: {person_mapping_file}"
+            )
 
         logger.info("Person mapping prepared with %d records", len(self.person_to_spells_df))
         return self.person_to_spells_df
-
-    def create_mock_person_mapping(self) -> pd.DataFrame:
-        '''
-            Create person-to-spells mapping from available data
-        '''
-        if self.grouper_output_df is None:
-            raise ValueError("Grouper output must be loaded before creating person mapping")
-
-        unique_spells = self.grouper_output_df[SPELL_ID].unique()
-
-        person_mapping = []
-        for i, spell_id in enumerate(unique_spells):
-            # Assign every 2-3 spells to the same person
-            person_id = f"PERSON_{(i // 2) + 1:06d}"
-            person_mapping.append({SPELL_ID: spell_id, PERSON_ID: person_id})
-
-        return pd.DataFrame(person_mapping)
 
     def calculate_priority_scores(self) -> pd.DataFrame:
         '''
@@ -390,7 +378,6 @@ class EndToEndPipeline:
                 how='left'
             )
 
-        # Add summary statistics
         self.add_summary_statistics()
 
         logger.info("Final results prepared with %d records", len(self.final_results_df))
@@ -469,7 +456,6 @@ class EndToEndPipeline:
                 'raw_data_file': self.config.raw_data_file,
                 'output_prefix': self.config.output_prefix,
                 'verify_gaps': self.config.verify_gaps,
-                'include_tariff': self.config.include_tariff,
             },
             'data_summary': {},
             'execution_timestamp': datetime.now().isoformat()
@@ -543,58 +529,6 @@ def run_full_pipeline_with_verification(
     return pipeline.run_complete_pipeline()
 
 
-def create_mock_data_for_testing(output_dir: Optional[str] = None) -> Dict[str, str]:
-    '''
-        Create mock data files for pipeline testing.
-
-        Args:
-            output_dir: Directory to save mock data files
-
-        Returns:
-            Dictionary of created mock file paths
-    '''
-    if output_dir is None:
-        output_dir = RAW_FILE_FOLDER
-
-    os.makedirs(output_dir, exist_ok=True)
-
-    mock_raw_data = pd.DataFrame({
-        'PROCODET': ['TEST001'] * 100,
-        'PROVSPNO': [f'SPELL{i:03d}' for i in range(100)],
-        'EPIORDER': [1] * 100,
-        'EPIDUR': [5, 3, 7, 2, 8] * 20,
-        'STARTAGE': [25, 45, 67, 34, 78] * 20,
-        'SEX': ['1', '2'] * 50,
-        'CLASSPAT': ['1', '2', '3'] * 33 + ['1'],
-        'ADMISORC': ['19'] * 100,
-        'ADMIMETH': ['11', '12', '21'] * 33 + ['11'],
-        'DISDEST': ['19'] * 100,
-        'DISMETH': ['1'] * 100,
-        'MAINSPEF': ['100'] * 100,
-        'TRETSPEF': ['100'] * 100,
-        'DIAG_1': ['I10X', 'J441', 'I259', 'E785', 'K590'] * 20,
-        'DIAG_2': ['E785', 'E119', 'I509', '', 'Z87891'] * 20,
-        'OPER_1': ['K601', 'H013', '', 'K751', 'Y534'] * 20,
-    })
-
-    mock_raw_file = os.path.join(output_dir, 'mock_raw_data.csv')
-    mock_raw_data.to_csv(mock_raw_file, index=False)
-
-    person_mapping = pd.DataFrame({
-        SPELL_ID: [f'SPELL{i:03d}' for i in range(100)],
-        PERSON_ID: [f'PERSON{(i//3)+1:03d}' for i in range(100)]
-    })
-
-    person_mapping_file = os.path.join(DATA_FILE_FOLDER, PERSON_TO_SPELLS_FILE)
-    os.makedirs(DATA_FILE_FOLDER, exist_ok=True)
-    person_mapping.to_csv(person_mapping_file, index=False)
-
-    return {
-        'mock_raw_data': mock_raw_file,
-        'person_mapping': person_mapping_file
-    }
-
-
 if __name__ == "__main__":
     import argparse
 
@@ -603,16 +537,10 @@ if __name__ == "__main__":
     parser.add_argument("--definitions", help="Path to RDF definitions file")
     parser.add_argument("--output-prefix", help="Prefix for output files")
     parser.add_argument("--verify-gaps", action="store_true", help="Run gap verification")
-    parser.add_argument("--create-mock", action="store_true", help="Create mock data for testing")
 
     args = parser.parse_args()
 
-    if args.create_mock:
-        mock_files = create_mock_data_for_testing()
-        print("Mock data created:")
-        for key, path in mock_files.items():
-            print(f"  {key}: {path}")
-    else:
+    if not args.raw_data_file:
         default_config = PipelineConfig(
             raw_data_file=args.raw_data_file,
             definitions_file=args.definitions,
