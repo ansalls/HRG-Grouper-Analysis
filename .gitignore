@@ -11,7 +11,7 @@ C_Utils/csv_utils.o
 .notes
 data/*/*
 !data/*/.gitkeep
-!data/cc_codes/
+!data/cc_codes/*
 .VSCodeCounter/2025-07-14_00-17-59/details.md
 .VSCodeCounter/2025-07-14_00-17-59/diff-details.md
 .VSCodeCounter/2025-07-14_00-17-59/diff.md
