@@ -6,9 +6,9 @@
     1. Raw data preprocessing with transformation plugins
     2. Running the grouper to generate initial HRG assignments
     3. Calculating CC scores and gap estimates
-    4. Generating and verifying CC gap test scenarios
+    4. Generating and verifying CC gaps
     5. Computing priority scores for potential revenue optimization
-    6. Exporting results for follow up
+    6. Exporting results for review/follow up
 '''
 import os
 from typing import Optional, Dict, List
@@ -267,7 +267,7 @@ class EndToEndPipeline:
 
     def prepare_person_mapping(self) -> pd.DataFrame:
         '''
-            Create or load person-to-spells mapping.
+            Load person-to-spells mapping.
 
             Returns:
                 DataFrame containing person to spells mapping
