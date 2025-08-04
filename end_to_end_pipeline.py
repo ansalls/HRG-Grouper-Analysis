@@ -5,10 +5,11 @@
     through the complete workflow:
     1. Raw data preprocessing with transformation plugins
     2. Running the grouper to generate initial HRG assignments
-    3. Calculating CC scores and gap estimates
-    4. Generating and verifying CC gaps
+    3. Load the grouper output and add in the tariff columns
+    4. Import the person-to-spells mapping
     5. Computing priority scores for potential revenue optimization
-    6. Exporting results for review/follow up
+    6. Generate final results
+    7. Exporting results for review/follow up
 '''
 import os
 from typing import Optional, Dict, List
@@ -24,16 +25,13 @@ from Utils.constants import (
 )
 from Utils.preprocess_raw_data_file import process_zl_data_file
 from Utils.run_grouper import run_grouper
-from Utils.grouper_data_import import (
-    read_data, get_grouper_output_file_by_type
-)
+from Utils.grouper_data_import import read_data, get_grouper_output_file_by_type
 from Utils.grouper_file_columns import parse_definition_file, fce_file_additional_cols
 from Utils.grouper_df_utils import apply_plugins, write_output
-from Utils.priority_score import (
-    calculate_priority_scores, generate_hrg_upgrade_verification_file,
-    verify_cc_gaps
-)
+from Utils.priority_score import calculate_priority_scores
 from Utils.diagnosis_history import get_person_to_spells_map
+
+from tariff_kv_store import add_tariff_columns
 
 from Probe_classes.grouper_file_type import GrouperFileType
 
@@ -45,8 +43,6 @@ from Plugins.only_single_episode_spells import OnlySingleEpisodeSpellsPlugin
 from Plugins.append_x import AppendXPlugin
 from Plugins.only_inpatient_baseclass import OnlyInpatientPlugin
 from Plugins.nc_strip import NcStripPlugin
-
-from tariff_kv_store import add_tariff_columns
 
 
 logging.basicConfig(
@@ -70,7 +66,6 @@ class PipelineConfig:
         raw_data_file: str,
         definitions_file: Optional[str] = None,
         output_prefix: Optional[str] = None,
-        verify_gaps: bool = True,
         max_diag_cols: int = MAX_DIAG_COLS,
         max_oper_cols: int = MAX_OPER_COLS
     ):
@@ -79,7 +74,6 @@ class PipelineConfig:
         self.raw_data_file = raw_data_file
         self.definitions_file = definitions_file or os.path.join(DATA_FILE_FOLDER, DEFAULT_RDF_FILE)
         self.output_prefix = output_prefix or f"pipeline_output_{timestamp}"
-        self.verify_gaps = verify_gaps
         self.max_diag_cols = max_diag_cols
         self.max_oper_cols = max_oper_cols
 
@@ -137,18 +131,13 @@ class EndToEndPipeline:
             # Step 4: Create or load person-to-spells mapping
             self.prepare_person_mapping()
 
-            # Step 5: Calculate initial priority scores
+            # Step 5: Calculate priority scores
             self.calculate_priority_scores()
 
-            # Step 6: Generate verification scenarios (if requested)
-            if self.config.verify_gaps:
-                self.generate_verification_scenarios()
-                self.verify_gap_scenarios()
-
-            # Step 7: Generate final results
+            # Step 6: Generate final results
             self.generate_final_results()
 
-            # Step 8: Export all outputs
+            # Step 7: Export all outputs
             export_files = self.export_results()
 
             logger.info("Pipeline execution completed successfully")
@@ -209,8 +198,8 @@ class EndToEndPipeline:
         return [
             OnlyInpatientPlugin(),
             ProcodetNullFillerPlugin(),
-            PeriodStripPlugin(),
             NcStripPlugin(),
+            PeriodStripPlugin(),
             AppendXPlugin(),
             ColumnExtenderPlugin(prefix=DIAGNOSIS_PREFIX, maximum=self.config.max_diag_cols),
             ColumnExtenderPlugin(prefix=PROCEDURE_PREFIX, maximum=self.config.max_oper_cols),
@@ -302,59 +291,11 @@ class EndToEndPipeline:
         self.priority_scores_df = calculate_priority_scores(
             self.grouper_output_df,
             self.person_to_spells_df,
-            verify_gaps=False  # Initial calculation without verification
+            verify_gaps=True
         )
 
         logger.info("Calculated priority scores for %d records", len(self.priority_scores_df))
         return self.priority_scores_df
-
-    def generate_verification_scenarios(self) -> pd.DataFrame:
-        '''
-            Generate test scenarios for CC gap verification.
-
-            Returns:
-                DataFrame containing verification test data
-        '''
-        logger.info("Step 6: Generating verification scenarios")
-
-        if self.grouper_output_df is None:
-            raise ValueError(
-                "Grouper output must be loaded before generating verification scenarios")
-
-        self.verification_df = generate_hrg_upgrade_verification_file(self.grouper_output_df)
-
-        logger.info("Generated %d verification scenarios", len(self.verification_df))
-        return self.verification_df
-
-    def verify_gap_scenarios(self) -> pd.DataFrame:
-        '''
-            Run grouper verification on test scenarios.
-
-            Returns:
-                DataFrame with verified gap results
-        '''
-        logger.info("Step 7: Verifying CC gap scenarios")
-
-        if self.verification_df is None:
-            raise ValueError("Verification scenarios must be generated first")
-
-        if self.grouper_output_df is None:
-            raise ValueError("Grouper output must be loaded before verifying gaps")
-
-        verified_results = verify_cc_gaps(
-            self.verification_df,
-            output_file=self.config.verification_file
-        )
-
-        # Recalculate priority scores with verified gaps
-        self.priority_scores_df = calculate_priority_scores(
-            self.grouper_output_df,
-            self.person_to_spells_df,
-            verify_gaps=True
-        )
-
-        logger.info("CC gap verification completed and priority scores updated")
-        return verified_results
 
     def generate_final_results(self) -> pd.DataFrame:
         '''
@@ -363,7 +304,7 @@ class EndToEndPipeline:
             Returns:
                 DataFrame containing complete analysis results
         '''
-        logger.info("Step 8: Generating final results")
+        logger.info("Step 6: Generating final results")
 
         if self.grouper_output_df is None:
             raise ValueError("Grouper output must be loaded before generating final results")
@@ -409,7 +350,7 @@ class EndToEndPipeline:
             Returns:
                 Dictionary mapping result type to file path
         '''
-        logger.info("Step 9: Exporting results")
+        logger.info("Step 7: Exporting results")
 
         export_files = {}
 
@@ -455,7 +396,6 @@ class EndToEndPipeline:
             'pipeline_config': {
                 'raw_data_file': self.config.raw_data_file,
                 'output_prefix': self.config.output_prefix,
-                'verify_gaps': self.config.verify_gaps,
             },
             'data_summary': {},
             'execution_timestamp': datetime.now().isoformat()
@@ -495,7 +435,6 @@ def run_basic_pipeline(
         raw_data_file=raw_data_file,
         definitions_file=definitions_file,
         output_prefix=output_prefix,
-        verify_gaps=False
     )
 
     pipeline = EndToEndPipeline(config)
@@ -522,7 +461,6 @@ def run_full_pipeline_with_verification(
         raw_data_file=raw_data_file,
         definitions_file=definitions_file,
         output_prefix=output_prefix,
-        verify_gaps=True
     )
 
     pipeline = EndToEndPipeline(config)
@@ -536,7 +474,6 @@ if __name__ == "__main__":
     parser.add_argument("raw_data_file", help="Path to raw data file")
     parser.add_argument("--definitions", help="Path to RDF definitions file")
     parser.add_argument("--output-prefix", help="Prefix for output files")
-    parser.add_argument("--verify-gaps", action="store_true", help="Run gap verification")
 
     args = parser.parse_args()
 
@@ -545,7 +482,6 @@ if __name__ == "__main__":
             raw_data_file=args.raw_data_file,
             definitions_file=args.definitions,
             output_prefix=args.output_prefix,
-            verify_gaps=args.verify_gaps
         )
 
         default_pipeline = EndToEndPipeline(default_config)
