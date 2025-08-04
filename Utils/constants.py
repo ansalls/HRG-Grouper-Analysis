@@ -21,6 +21,7 @@ CACHE_FILE_FOLDER = f"{DATA_FILE_FOLDER}/cache"
 HRG_INPUT_FILE_FOLDER = f"{DATA_FILE_FOLDER}/hrg_input"
 HRG_OUTPUT_FILE_FOLDER = f"{DATA_FILE_FOLDER}/hrg_output"
 PROCESSED_FILE_FOLDER = f"{DATA_FILE_FOLDER}/processed"
+CC_CODES_FILE_FOLDER = f"{DATA_FILE_FOLDER}/cc_codes/individual_lists"
 
 # File name related
 DEFAULT_FILE_EXTENSION = ".csv"
@@ -69,3 +70,8 @@ SPECIALIST_PALLIATIVE_CARE_DAYS = 'SPCDAYS'
 # Output File Columns
 SPELL_HRG = "SpellHRG"
 GROUING_METHOD_FLAG = "GroupingMethodFlag"
+
+# Person diagnosis history related
+PERSON_ID = "PERSON_ID"  # Column name for person identifier
+COMORBIDITY_CODES_FILE = "comorbidity_codes_dataset.csv"
+PERSON_TO_SPELLS_FILE = "person_to_spells_map.csv"

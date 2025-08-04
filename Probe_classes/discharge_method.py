@@ -21,6 +21,6 @@ class DischargeMethod(EnumProbeMixin, Enum):
     @classmethod
     def column_name(cls) -> str:
         '''
-        Returns the name of the column that contains the code.
+            Returns the name of the column that contains the code.
         '''
         return DISCHARGE_METHOD
