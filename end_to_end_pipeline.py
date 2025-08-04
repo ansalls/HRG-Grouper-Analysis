@@ -21,7 +21,7 @@ from Utils.constants import (
     HRG_OUTPUT_FILE_FOLDER, HRG_COLUMN_NAME,
     DEFAULT_RDF_FILE, PERSON_TO_SPELLS_FILE,
     DIAGNOSIS_PREFIX, PROCEDURE_PREFIX,
-    MAX_OPER_COLS, MAX_DIAG_COLS
+    MAX_OPER_COLS, MAX_DIAG_COLS, SPELL_ID
 )
 from Utils.preprocess_raw_data_file import process_zl_data_file
 from Utils.run_grouper import run_grouper
@@ -82,10 +82,6 @@ class PipelineConfig:
             PROCESSED_FILE_FOLDER, f"{self.output_prefix}_processed.csv")
         self.grouper_output_base = os.path.join(
             HRG_OUTPUT_FILE_FOLDER, f"{self.output_prefix}_grouped")
-        self.priority_scores_file = os.path.join(
-            PROCESSED_FILE_FOLDER, f"{self.output_prefix}_priority_scores.csv")
-        self.verification_file = os.path.join(
-            PROCESSED_FILE_FOLDER, f"{self.output_prefix}_verification.csv")
         self.final_results_file = os.path.join(
             PROCESSED_FILE_FOLDER, f"{self.output_prefix}_final_results.csv")
 
@@ -109,12 +105,12 @@ class EndToEndPipeline:
 
         logger.info("Initialized pipeline with config: %s", config.output_prefix)
 
-    def run_complete_pipeline(self) -> Dict[str, str]:
+    def run_complete_pipeline(self) -> str:
         '''
             Execute the complete end-to-end pipeline.
 
             Returns:
-                Dict containing paths to all generated output files
+                Path to the final results file
         '''
         logger.info("Starting complete end-to-end pipeline execution")
 
@@ -138,10 +134,10 @@ class EndToEndPipeline:
             self.generate_final_results()
 
             # Step 7: Export all outputs
-            export_files = self.export_results()
+            export_file = self.export_results()
 
             logger.info("Pipeline execution completed successfully")
-            return export_files
+            return export_file
 
         except Exception as e:
             logger.error("Pipeline execution failed: %s", str(e))
@@ -314,8 +310,8 @@ class EndToEndPipeline:
         # Merge priority scores
         if self.priority_scores_df is not None:
             self.final_results_df = self.final_results_df.merge(
-                self.priority_scores_df[['PROVSPNO', 'PriorityScore']],
-                on='PROVSPNO',
+                self.priority_scores_df[[SPELL_ID, 'PriorityScore']],
+                on=SPELL_ID,
                 how='left'
             )
 
@@ -343,47 +339,21 @@ class EndToEndPipeline:
                 include_lowest=True
             )
 
-    def export_results(self) -> Dict[str, str]:
+    def export_results(self) -> str:
         '''
-            Export all pipeline results to files.
+            Export pipeline results to file.
 
             Returns:
-                Dictionary mapping result type to file path
+                Path to the exported results file
         '''
         logger.info("Step 7: Exporting results")
-
-        export_files = {}
 
         # Export final results
         if self.final_results_df is not None:
             self.final_results_df.to_csv(self.config.final_results_file, index=False)
-            export_files['final_results'] = self.config.final_results_file
             logger.info("Final results exported to: %s", self.config.final_results_file)
 
-        # Export priority scores separately
-        if self.priority_scores_df is not None:
-            self.priority_scores_df.to_csv(self.config.priority_scores_file, index=False)
-            export_files['priority_scores'] = self.config.priority_scores_file
-            logger.info("Priority scores exported to: %s", self.config.priority_scores_file)
-
-        # Export verification results (if generated)
-        if self.verification_df is not None:
-            verification_export_file = self.config.verification_file.replace(
-                '.csv', '_exported.csv')
-            self.verification_df.to_csv(verification_export_file, index=False)
-            export_files['verification'] = verification_export_file
-            logger.info("Verification results exported to: %s", verification_export_file)
-
-        # Export person mapping
-        if self.person_to_spells_df is not None:
-            person_mapping_export = os.path.join(
-                PROCESSED_FILE_FOLDER,
-                f"{self.config.output_prefix}_person_mapping.csv"
-            )
-            self.person_to_spells_df.to_csv(person_mapping_export, index=False)
-            export_files['person_mapping'] = person_mapping_export
-
-        return export_files
+        return self.config.final_results_file
 
     def get_pipeline_summary(self) -> Dict:
         '''
@@ -419,7 +389,7 @@ def run_basic_pipeline(
     raw_data_file: str,
     definitions_file: Optional[str] = None,
     output_prefix: Optional[str] = None
-) -> Dict[str, str]:
+) -> str:
     '''
         Run a basic pipeline without gap verification.
 
@@ -429,7 +399,7 @@ def run_basic_pipeline(
             output_prefix: Prefix for output files
 
         Returns:
-            Dictionary of output file paths
+            Path to the exported results file
     '''
     config = PipelineConfig(
         raw_data_file=raw_data_file,
@@ -445,7 +415,7 @@ def run_full_pipeline_with_verification(
     raw_data_file: str,
     definitions_file: Optional[str] = None,
     output_prefix: Optional[str] = None
-) -> Dict[str, str]:
+) -> str:
     '''
         Run complete pipeline including gap verification.
 
@@ -485,12 +455,11 @@ if __name__ == "__main__":
         )
 
         default_pipeline = EndToEndPipeline(default_config)
-        output_files = default_pipeline.run_complete_pipeline()
+        output_file = default_pipeline.run_complete_pipeline()
 
         print("Pipeline completed successfully!")
-        print("Output files:")
-        for key, path in output_files.items():
-            print(f"  {key}: {path}")
+        print("Output file:")
+        print(f"  {output_file}")
 
         summary = default_pipeline.get_pipeline_summary()
         print("\nPipeline Summary:")
